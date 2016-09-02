@@ -1,0 +1,79 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+
+    <title>Wolf, Goat, Cabbage</title>
+    <meta name="description" content="">
+    <meta name="author" content="Kevin Albertson">
+
+    <style type="text/css">
+    </style>
+
+    <!--[if lt IE 9]>
+    <script src="http://html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+</head>
+
+<body>
+    <div id="game"></div>
+    <script src="js/phaser.min.js"></script>
+    <script>
+        var game = new Phaser.Game(900, 450, Phaser.AUTO, "game", {
+            preload: preload,
+            create: create,
+            update: update
+        }, false, false, null);
+
+        var farmer = {
+            dir: 1,
+            frameIndex: 0,
+            kFrames: {
+                'idle': [0],
+                'walking': [1, 2, 3, 4, 5, 6]
+            },
+            state: 'idle',
+            sprite: null
+        }
+
+        function preload() {
+            game.load.image("bg", "img/bg.png");
+            game.load.image("farmer-shadow", "img/farmer-shadow.png");
+            game.load.spritesheet("farmer", "img/farmer.png", 20, 43);
+        }
+
+        function create() {
+            game.camera.scale.set(3, 3);
+            bg = game.add.sprite(0, 0, "bg");
+            farmer.sprite = game.add.sprite(95, 80, "farmer");
+            farmer.sprite.anchor.set(.5, .5);
+            farmer.sprite.animations.add("idle", [0]);
+            farmer.sprite.animations.add("walking", [1,2,3,4,5,6], 6);
+        }
+
+        function update() {
+            if (game.input.keyboard.isDown(Phaser.KeyCode.RIGHT)) {
+                farmer.dir = 1;
+                farmer.state = 'walking';
+                farmer.sprite.position.x += .03 * game.time.elapsed;
+            } else if (game.input.keyboard.isDown(Phaser.KeyCode.LEFT)) {
+                farmer.dir = -1;
+                farmer.state = 'walking';
+                farmer.sprite.position.x += -.03 * game.time.elapsed;
+            } else {
+                farmer.state = 'idle';
+            }
+
+            farmer.sprite.scale.set(farmer.dir, 1);
+            farmer.sprite.animations.play(farmer.state) // idempotent.
+        }
+
+        var states = {
+            create: create,
+            update: update
+        }
+
+    </script>
+</body>
+</html>
