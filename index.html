@@ -26,47 +26,308 @@
             update: update
         }, false, false, null);
 
+        var kLakeStartX = 140, kLakeEndX = 387;
+        var kGroundY = 89;
+
         var farmer = {
             dir: 1,
             frameIndex: 0,
             kFrames: {
-                'idle': [0],
-                'walking': [1, 2, 3, 4, 5, 6]
+                "idle": [0],
+                "walking": [1, 2, 3, 4, 5, 6]
             },
-            state: 'idle',
+            state: "idle",
+            boatState: "not_in", // in, moving
+            pickingUpState: "none", // goat, wolf, cabbage
+            body: null,
+            sprite: null,
+            shadow: null
+        };
+
+        var goat = {
+            dir : 1,
+            state: "idle", // walking, eating, held
+            boatState: "not_in",
             sprite: null
+        };
+
+        var cabbage = {
+            boatState: "not_in",
+            sprite: null
+        };
+
+        var wolf = {
+            boatState: "not_in",
+            sprite: null
+        };
+
+        var boat = {
+            dir: 1,
+            state: "idle", // moving,
+            sprite: null,
+            side: "left", // center/right
+        };
+
+        var textDisplay = {
+            graphics: null,
+            text: null, // Currently displayed text.
+            newText: null // Text requested to display this frame.
+        };
+
+        var actors = new Map([["farmer", farmer], ["goat", goat], ["cabbage", cabbage], ["wolf", wolf]]);
+
+        var keysDownHandled = {};
+
+        var targetCameraX = 0;
+
+        // Once a text is shown it stays shown until this method is not called.
+        function showText(msg) {
+            textDisplay.newText = msg;
+        }
+
+        // Returns true if this keycode is down. If it returns true, it will wait until it is released
+        // and re-pressed before returning true again.
+        function isPressed(keycode) {
+            if (game.input.keyboard.isDown(keycode)) {
+                if (keysDownHandled[keycode]) {
+                    return false;
+                } else {
+                    keysDownHandled[keycode] = true;
+                    return true;
+                }
+            }
+        }
+
+        // Called at the end of the frame.
+        function updateText() {
+            // If the text display has been created or changed, we need to re-render.
+            if (textDisplay.newText) {
+                if (textDisplay.newText != textDisplay.text) {
+                    // Display created/changed text.
+                    if (textDisplay.graphics) textDisplay.graphics.destroy();
+                    textDisplay.graphics = game.add.graphics(0, 0);
+                    textDisplay.graphics.beginFill(0x000000);
+                    textDisplay.graphics.drawRect(10, 130, 280, 11);
+                    textDisplay.graphics.endFill();
+                    textDisplay.graphics.addChild(game.add.bitmapText(12, 127, "font", textDisplay.newText, 16));
+                    textDisplay.text = textDisplay.newText;
+                }
+            } else {
+                // Otherwise, if the text display was null, delete.
+                if (textDisplay.graphics) textDisplay.graphics.destroy();
+                textDisplay.text = null;
+            }
+
+            // Update position of graphics.
+            if (textDisplay.graphics) textDisplay.graphics.x = game.camera.x / game.camera.scale.x;
+            textDisplay.newText = null;
         }
 
         function preload() {
             game.load.image("bg", "img/bg.png");
             game.load.image("farmer-shadow", "img/farmer-shadow.png");
-            game.load.spritesheet("farmer", "img/farmer.png", 20, 43);
+            game.load.image("goat", "img/goat.png");
+            game.load.image("wolf", "img/wolf.png");
+            game.load.image("cabbage", "img/cabbage.png");
+            game.load.image("boat", "img/boat.png");
+            game.load.spritesheet("farmer", "img/farmer.png", 20, 44);
+            game.load.bitmapFont("font", "img/font.png", "img/font.fnt");
         }
 
         function create() {
             game.camera.scale.set(3, 3);
+
             bg = game.add.sprite(0, 0, "bg");
-            farmer.sprite = game.add.sprite(95, 80, "farmer");
-            farmer.sprite.anchor.set(.5, .5);
-            farmer.sprite.animations.add("idle", [0]);
-            farmer.sprite.animations.add("walking", [1,2,3,4,5,6], 6);
+
+            goat.sprite = game.add.sprite(50, 88, "goat");
+            goat.sprite.anchor.set(.5, .5);
+
+            cabbage.sprite = game.add.sprite(82, 93, "cabbage");
+            cabbage.sprite.anchor.set(.5, .5);
+
+            wolf.sprite = game.add.sprite(20, 94, "wolf");
+            wolf.sprite.anchor.set(.5, .5);
+
+            farmer.sprite = game.add.group();
+            farmer.sprite.position.x = 100;
+            farmer.sprite.position.y = 80;
+            farmer.body = game.add.sprite(0, 0, "farmer");
+            farmer.body.anchor.set(.5, .5);
+            farmer.body.animations.add("idle", [0]);
+            farmer.body.animations.add("walking", [1,2,3,4,5,6], 6);
+            farmer.shadow = farmer.sprite.create(-8, 16, "farmer-shadow");
+            farmer.sprite.add(farmer.body);
+
+            boat.sprite = game.add.sprite(178, 95, "boat");
+            boat.sprite.anchor.set(.5, .5);
+
+            game.input.keyboard.onUpCallback = function(keyEvent) {
+                keysDownHandled[keyEvent.keyCode] = false;
+            }
+        }
+
+        function farmerTick() {
+            // Check all state transitions.
+            var fx = farmer.sprite.position.x;
+            var fhw = farmer.sprite.width / 2;
+
+            // Check if farmer should start walking.
+            if (game.input.keyboard.isDown(Phaser.KeyCode.RIGHT)) {
+                farmer.dir = 1;
+                farmer.state = "walking";
+            } else if (game.input.keyboard.isDown(Phaser.KeyCode.LEFT)) {
+                farmer.dir = -1;
+                farmer.state = "walking";
+            } else {
+                farmer.state = "idle";
+            }
+            
+            if (farmer.state == "walking")
+                farmer.sprite.position.x = fx = fx + farmer.dir * .03 * game.time.elapsed;
+
+            farmer.body.scale.set(farmer.dir, 1);
+            farmer.body.animations.play(farmer.state) // idempotent.
+
+            // Check if farmer is in the boat.
+            if (farmer.boatState == "not_in") {
+                farmer.shadow.visible = true;
+                var leftDiff = (fx + fhw) - kLakeStartX;
+                var rightDiff = kLakeEndX - (fx - fhw);
+                if (rightDiff > 0 && leftDiff > 0) {
+                    if (leftDiff < rightDiff) {
+                        // Farmer is attempting to get in from the left end of the lake.
+                        // The farmer cannot get in with an additional item.
+                        var boatFilled = false;
+                        actors.forEach((actor) => {
+                            boatFilled = boatFilled || actor.boatState == "in";
+                        });
+                        if (farmer.pickingUpState != "none" && boatFilled) {
+                            fx = farmer.sprite.position.x = kLakeStartX - fhw;
+                        } else {
+                            fx = farmer.sprite.position.x = boat.sprite.position.x - 20;
+                            farmer.boatState = "in";
+                        }
+                    } else {
+                        // Farmer is attempting to get in from the right end of the lake.
+                        fx = farmer.sprite.position.x = kLakeEndX + fhw;
+                    }
+                }
+            } else {
+                farmer.shadow.visible = false;
+                // Check if farmer can get out of boat.
+                var bx = boat.sprite.position.x;
+                var bhw = boat.sprite.width / 2;
+                if (fx - fhw <= bx - bhw) {
+                    if (boat.side == "left") {
+                        farmer.boatState = "not_in";
+                        farmer.sprite.position.x = kLakeStartX - fhw;
+                    } else {
+                        farmer.sprite.position.x = fx = bx - bhw + fhw;
+                        if (boat.state == "idle" && farmer.pickingUpState == "none") {
+                            showText("Press (space) to ride boat");
+                            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                                boat.state = "moving";
+                                boat.side = "center";
+                                boat.dir = -1;
+                            }
+                        }
+                    }
+                } else if (fx + fhw >= bx + bhw) {
+                    if (boat.side == "right") {
+                        farmer.boatState = "not_in";
+                        farmer.sprite.position.x = kLakeEndX + fhw;
+                    } else {
+                        farmer.sprite.position.x = fx = bx + bhw - fhw;
+                        if (boat.state == "idle" && farmer.pickingUpState == "none") {
+                            showText("Press (space) to ride boat");
+                            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                                boat.state = "moving";
+                                boat.side = "center";
+                                boat.dir = 1;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (farmer.pickingUpState == "none") {
+                actors.forEach((actor, actorName) => {
+                    if (actorName == "farmer") return;
+                    if (Math.abs(farmer.sprite.position.x - actor.sprite.position.x) < 4) {
+                        showText("Press (space) to pick up " + actorName)
+                        if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                            farmer.pickingUpState = actorName;
+                            actor.state = "held";
+                        }
+                    }    
+                });
+            } else {
+                showText("Press (space) to drop " + farmer.pickingUpState);
+                if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                    var actor = actors.get(farmer.pickingUpState);
+                    actor.state = "idle";
+                    farmer.pickingUpState = "none";
+                }
+            }
+            farmer.sprite.y = 75;
+        }
+
+        // Assumes y positions have been set for actors.
+        function boatTick() {
+            // Move everything on the boat up and down.
+            var boatYOffset = Math.sin(game.time.elapsedSince(0) * .005) / 2;
+            boat.sprite.position.y = 95 + boatYOffset;
+            actors.forEach((actor) => {
+                actor.sprite.y += actor.boatState == "in" ? boatYOffset : 0;
+            });
+
+            if (boat.state == "moving") {
+                var deltaX = boat.dir * game.time.elapsed * .05;
+                actors.forEach((actor) => {
+                    actor.sprite.x += actor.boatState == "in" ? deltaX : 0;
+                });
+                boat.sprite.position.x += deltaX;
+            }
+            
+        }
+
+        function animalTick() {
+            // Apply properties common to all animals.
+            actors.forEach((actor, actorName) => {
+                if (actorName == "farmer") return;
+                if (actor.state == "held") {
+                   actor.boatState = farmer.boatState;
+                   actor.sprite.position.x = farmer.sprite.position.x;
+                   actor.sprite.position.y = 75;
+                } else {
+                   actor.sprite.position.y = 88;
+                }
+           });
+
+            // Check if goat can eat cabbage.
+            // Check if wolf can eat goat.
         }
 
         function update() {
-            if (game.input.keyboard.isDown(Phaser.KeyCode.RIGHT)) {
-                farmer.dir = 1;
-                farmer.state = 'walking';
-                farmer.sprite.position.x += .03 * game.time.elapsed;
-            } else if (game.input.keyboard.isDown(Phaser.KeyCode.LEFT)) {
-                farmer.dir = -1;
-                farmer.state = 'walking';
-                farmer.sprite.position.x += -.03 * game.time.elapsed;
+            farmerTick();
+            animalTick();
+            boatTick();
+
+            if (farmer.sprite.position.x > kLakeStartX + 30) {
+                targetCameraX = farmer.sprite.position.x;
+                
             } else {
-                farmer.state = 'idle';
+                targetCameraX = 0;
+                
             }
 
-            farmer.sprite.scale.set(farmer.dir, 1);
-            farmer.sprite.animations.play(farmer.state) // idempotent.
+            var camDiff = targetCameraX - game.camera.x;
+            if (Math.abs(camDiff) < .01) {
+                game.camera.x = targetCameraX;
+            } else {
+                game.camera.x += game.time.elapsed * camDiff * .001;
+            }
+            updateText();
         }
 
         var states = {
