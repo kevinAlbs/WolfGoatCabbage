@@ -26,7 +26,7 @@
             update: update
         }, false, false, null);
 
-        var kLakeStartX = 140, kLakeEndX = 387;
+        var kLakeStartX = 140, kLakeEndX = 380;
         var kGroundY = 89;
 
         var farmer = {
@@ -41,24 +41,26 @@
             pickingUpState: "none", // goat, wolf, cabbage
             body: null,
             sprite: null,
-            shadow: null
+            shadow: null,
         };
 
         var goat = {
             dir : 1,
-            state: "idle", // walking, eating, held
+            state: "idle", // walking, eating, held, dead
             boatState: "not_in",
-            sprite: null
+            sprite: null,
         };
 
         var cabbage = {
             boatState: "not_in",
-            sprite: null
+            sprite: null,
         };
 
         var wolf = {
+            dir : 1,
+            state: "idle", // walking, eating, held
             boatState: "not_in",
-            sprite: null
+            sprite: null,
         };
 
         var boat = {
@@ -80,9 +82,14 @@
 
         var targetCameraX = 0;
 
+        var endingState = "none"; // wolf_eats_goat, goat_eats_cabbage
+
+        var titleShowing = false;
+
         // Once a text is shown it stays shown until this method is not called.
+        // Ignore calls to this if the game is in an ending state.
         function showText(msg) {
-            textDisplay.newText = msg;
+            if (endingState == "none") textDisplay.newText = msg;
         }
 
         // Returns true if this keycode is down. If it returns true, it will wait until it is released
@@ -96,6 +103,17 @@
                     return true;
                 }
             }
+        }
+
+        // Idempotent.
+        function showTitle(msg, restart) {
+            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                restartGame();
+            }
+            if (titleShowing) return;
+            game.add.sprite(10, 10, "title");
+            if (msg) game.add.bitmapText(85, 12, "font", msg, 16);
+            if (restart) game.add.bitmapText(10, 30, "font", "(space) to restart", 16);
         }
 
         // Called at the end of the frame.
@@ -123,13 +141,19 @@
             textDisplay.newText = null;
         }
 
+        function restartGame() {
+            game.camera.x = 0;
+            console.log("Restart not supported yet"); // TODO
+        }
+
         function preload() {
+            game.load.image("title", "img/title.png");
             game.load.image("bg", "img/bg.png");
             game.load.image("farmer-shadow", "img/farmer-shadow.png");
             game.load.image("goat", "img/goat.png");
             game.load.image("wolf", "img/wolf.png");
             game.load.image("cabbage", "img/cabbage.png");
-            game.load.image("boat", "img/boat.png");
+            game.load.image("boat", "img/boat.png?v2");
             game.load.spritesheet("farmer", "img/farmer.png", 20, 44);
             game.load.bitmapFont("font", "img/font.png", "img/font.fnt");
         }
@@ -167,9 +191,21 @@
         }
 
         function farmerTick() {
+            // Update farmer based on current state.
+
             // Check all state transitions.
             var fx = farmer.sprite.position.x;
             var fhw = farmer.sprite.width / 2;
+            
+            if (farmer.state == "walking")
+                farmer.sprite.position.x = fx = fx + farmer.dir * .03 * game.time.elapsed;
+
+            farmer.body.scale.set(farmer.dir, 1);
+            farmer.body.animations.play(farmer.state) // idempotent.
+            farmer.sprite.y = 75;
+
+            // Check for state transitions if the game is not over.
+            if (endingState != "none") return;
 
             // Check if farmer should start walking.
             if (game.input.keyboard.isDown(Phaser.KeyCode.RIGHT)) {
@@ -181,12 +217,6 @@
             } else {
                 farmer.state = "idle";
             }
-            
-            if (farmer.state == "walking")
-                farmer.sprite.position.x = fx = fx + farmer.dir * .03 * game.time.elapsed;
-
-            farmer.body.scale.set(farmer.dir, 1);
-            farmer.body.animations.play(farmer.state) // idempotent.
 
             // Check if farmer is in the boat.
             if (farmer.boatState == "not_in") {
@@ -269,11 +299,11 @@
                     farmer.pickingUpState = "none";
                 }
             }
-            farmer.sprite.y = 75;
         }
 
         // Assumes y positions have been set for actors.
         function boatTick() {
+            var bx = boat.sprite.position.x, bhw = boat.sprite.width / 2;
             // Move everything on the boat up and down.
             var boatYOffset = Math.sin(game.time.elapsedSince(0) * .005) / 2;
             boat.sprite.position.y = 95 + boatYOffset;
@@ -286,7 +316,13 @@
                 actors.forEach((actor) => {
                     actor.sprite.x += actor.boatState == "in" ? deltaX : 0;
                 });
-                boat.sprite.position.x += deltaX;
+                bx = boat.sprite.position.x = bx + deltaX;
+                if (boat.dir == 1) {
+                    if (bx > kLakeEndX - bhw) {
+                        boat.side = "right";
+                        boat.state = "idle";
+                    }
+                }
             }
             
         }
@@ -302,30 +338,84 @@
                 } else {
                    actor.sprite.position.y = 88;
                 }
-           });
+            });
 
-            // Check if goat can eat cabbage.
-            // Check if wolf can eat goat.
+            if (boat.state == "moving") {
+                var side = (actor) => { return side <= kLakeStartX ? -1 : 1; }
+                if (side(wolf) == side(goat) && wolf.boatState == "not_in" && goat.boatState == "not_in") {
+                    endingState = "wolf_eats_goat";
+                }
+                if (side(goat) == side(cabbage) && goat.boatState == "not_in" && cabbage.boatState == "not_in") {
+                    endingState = "goat_eats_cabbage";
+                }
+            }
+
+            if (wolf.state == "walking") {
+                var diff = goat.sprite.position.x - wolf.sprite.position.x;
+                if (Math.abs(diff) > 10) {
+                    wolf.dir = Math.sign(diff);
+                    wolf.sprite.position.x += .05 * wolf.dir * game.time.elapsed;
+                } else {
+                    wolf.state = "eating";
+                    goat.state = "dead";
+                }
+            } else if (wolf.state == "eating") {
+                // Show title screen once goat is completely eaten.
+                showTitle("Wolves eat goats.", true);
+            }
+
+            if (goat.state == "walking") {
+                var diff = cabbage.sprite.position.x - goat.sprite.position.x;
+                if (Math.abs(diff) > 5) {
+                    goat.dir = Math.sign(diff);
+                    goat.sprite.position.x += .05 * goat.dir * game.time.elapsed;
+                } else {
+                    goat.state = "eating";
+                    cabbage.state = "dead";
+                }
+            }
+
+            cabbage.sprite.scale.set(1, cabbage.state == "dead" ? -1 : 1);
+            goat.sprite.scale.set(goat.dir, goat.state == "dead" ? -1 : 1);
+            wolf.sprite.scale.set(wolf.dir, 1);
         }
 
         function update() {
             farmerTick();
             animalTick();
             boatTick();
-
-            if (farmer.sprite.position.x > kLakeStartX + 30) {
-                targetCameraX = farmer.sprite.position.x;
-                
-            } else {
-                targetCameraX = 0;
-                
+            
+            switch(endingState) {
+                case "none":
+                    if (farmer.sprite.position.x > kLakeStartX + 65) {
+                        targetCameraX = farmer.sprite.position.x;
+                    }
+                    break;
+                case "wolf_eats_goat":
+                    if (wolf.state == "idle" && farmer.sprite.position.x > kLakeStartX + 120) {
+                        wolf.state = "walking";
+                    }
+                    if (wolf.sprite.position.x > kLakeStartX) {
+                        targetCameraX = wolf.sprite.position.x;
+                    }
+                    break;
+                case "goat_eats_cabbage":
+                    if (goat.state == "idle" && farmer.sprite.position.x > kLakeStartX + 120) {
+                        goat.state = "walking";
+                    }
+                    if (goat.sprite.position.x > kLakeStartX) {
+                        targetCameraX = goat.sprite.position.x;
+                    }
+                    break;
             }
+
+            targetCameraX = Math.max(0, targetCameraX);
 
             var camDiff = targetCameraX - game.camera.x;
             if (Math.abs(camDiff) < .01) {
                 game.camera.x = targetCameraX;
             } else {
-                game.camera.x += game.time.elapsed * camDiff * .001;
+                game.camera.x += game.time.elapsed * camDiff * .002;
             }
             updateText();
         }
