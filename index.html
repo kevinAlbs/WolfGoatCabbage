@@ -182,7 +182,7 @@
 
         // TODO: optimize.
         function deepCopy(obj) {
-            return JSON.parse(JSON.stringify(obj));
+            return Phaser.Utils.extend(true, {}, obj);
         }
 
         function getCompleteState() {
