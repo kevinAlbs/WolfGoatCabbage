@@ -27,7 +27,10 @@
         }, false, false, null);
 
         var kLakeStartX = 140, kLakeEndX = 360;
+        var kBarnStartX = 750;
+        var kCamBeforeFarm = 550 - 300, kCamAfterFarm = 800 - 300, kCamBarn = 800;
         var kGroundY = 89;
+        var screen = "outside"; // barn
 
         var farmer = {
             // TODO: attempt to put all state in one easy copyable sub object so saving/loading is
@@ -133,6 +136,11 @@
             }
         }
 
+        function isFinished() {
+            return goat.state.x > kLakeEndX &&
+                cabbage.state.x > kLakeEndX && wolf.state.x > kLakeEndX;
+        }
+
         // Idempotent.
         function showTitle(msg, restart) {
             if (isPressed(Phaser.KeyCode.SPACEBAR)) {
@@ -227,7 +235,7 @@
 
         function preload() {
             game.load.image("title", "img/title.png");
-            game.load.image("bg", "img/bg.png");
+            game.load.image("bg", "img/bg.png?v2");
             game.load.image("farmer-shadow", "img/farmer-shadow.png");
             game.load.image("goat", "img/goat.png");
             game.load.image("wolf", "img/wolf.png");
@@ -241,6 +249,7 @@
             restartState = getCompleteState();
 
             game.camera.scale.set(3, 3);
+            game.camera.bounds = null;
 
             bg = game.add.sprite(0, 0, "bg");
 
@@ -381,6 +390,12 @@
                 }
             }
 
+            // Check if moving into barn.
+            if (screen == "outside" && farmer.state.x > kBarnStartX) {
+                farmer.state.x = kCamBarn + 10;
+                screen = "barn";
+            }
+
             // Apply farmer state to farmer sprite.
             farmer.body.scale.set(farmer.state.dir, 1);
             farmer.body.animations.play(farmer.state.body) // idempotent.
@@ -515,16 +530,32 @@
                     break;
             }
 
-            // Clamp camera offset.
-            targetCameraX = Math.max(0, targetCameraX);
-            targetCameraX = Math.min(18000 - 900, targetCameraX);
-
             var camDiff = targetCameraX - game.camera.x;
             if (Math.abs(camDiff) < .01) {
                 game.camera.x = targetCameraX;
             } else {
                 game.camera.x += game.time.elapsed * camDiff * .002;
             }
+
+            // Clamp camera offset.
+            var leftEnd = 0;
+            if (screen == "barn") {
+                leftEnd = 3 * kCamBarn;
+            }
+            game.camera.x = Math.max(leftEnd, game.camera.x);
+
+            // Based on state, set camera right end. TODO: make this a hard clamping.
+            var rightEnd = 0;
+            if (screen == "barn") {
+                rightEnd = 3 * kCamBarn;
+            } else if (screen == "outside") {
+                rightEnd = 3 * kCamBeforeFarm;
+                if (isFinished()) {
+                    rightEnd = 3 * kCamAfterFarm;
+                }
+            }
+            game.camera.x = Math.min(rightEnd, game.camera.x);
+
             updateText();
         }
 
