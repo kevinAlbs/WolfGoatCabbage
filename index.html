@@ -103,7 +103,8 @@
         var textDisplay = {
             graphics: null,
             text: null, // Currently displayed text.
-            newText: null // Text requested to display this frame.
+            newText: null, // Text requested to display this frame.
+            bitmapText: null,
         };
 
         var actors = new Map([["farmer", farmer], ["goat", goat], ["cabbage", cabbage], ["wolf", wolf]]);
@@ -133,6 +134,10 @@
             sky: {
                 changing: false,
                 timeToNight: 60 * 1000
+            },
+            endSequence : {
+                active: false,
+                presses: 0
             }
         };
 
@@ -187,13 +192,19 @@
                     textDisplay.graphics.beginFill(0x000000);
                     textDisplay.graphics.drawRect(10, 130, 280, 11);
                     textDisplay.graphics.endFill();
-                    textDisplay.graphics.addChild(game.add.bitmapText(12, 127, "font", textDisplay.newText, 16));
+                    textDisplay.bitmapText = game.add.bitmapText(12, 127, "font", textDisplay.newText, 16);
+                    textDisplay.graphics.addChild(textDisplay.bitmapText);
                     textDisplay.text = textDisplay.newText;
                 }
             } else {
                 // Otherwise, if the text display was null, delete.
                 if (textDisplay.graphics) textDisplay.graphics.destroy();
                 textDisplay.text = null;
+            }
+
+            if (gameState.endSequence && textDisplay.bitmapText) {
+                var diff = Math.min(255, Math.floor(255 * gameState.endSequence.presses  / 20));
+                textDisplay.bitmapText.tint = 0xFF0000 | (0xFF - diff) | ((0xFF - diff) << 8);
             }
 
             // Update position of graphics.
@@ -318,7 +329,8 @@
 
             gun.sprite = game.add.sprite(826, 111, "gun");
             gun.sprite.anchor.set(.5, .5);
-            
+
+            loadState();
         }
 
         function farmerTick() {
@@ -519,9 +531,15 @@
             if (farmer.state.pickingUp == "gun") {
                 gun.sprite.visible = false;
                 if (farmer.state.x < kLakeEndX + fhw + 20) {
+                    gameState.endSequence.active = true;
                     showText("Press (space) to end it");
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
                         console.log("Increment");
+                        gameState.endSequence.presses++;
+
+                        if (gameState.endSequence.presses == 10) {
+                            showTitle("The end.", true);
+                        }
                     }
                 }
             }

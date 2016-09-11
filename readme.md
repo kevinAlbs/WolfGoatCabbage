@@ -10,3 +10,7 @@ Clean up code
 - Consider push vs pull. Right now polling is inefficient but nicer to code, can pushing also be
 done nicely?
 - States like x coordinate make sense to pull since each movement would have to notify all listeners.
+
+Extras:
+- Write WebGL filter for zoom blur or something.
+- Auto shadows
