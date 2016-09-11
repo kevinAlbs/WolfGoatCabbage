@@ -137,7 +137,10 @@
             },
             endSequence : {
                 active: false,
-                presses: 0
+                step: 0,
+                decrementTimer: 0,
+                rate: 1000, // rate at which clock step decreases. Decreases as step increases.
+                highlightTimer: 0, // highlights the (space)
             }
         };
 
@@ -167,7 +170,7 @@
 
         // Idempotent.
         function showTitle(msg, restart) {
-            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+            if (restart && isPressed(Phaser.KeyCode.SPACEBAR)) {
                 if (title.showing) title.group.destroy();
                 title.showing = false;
                 restartGame();
@@ -180,6 +183,7 @@
             if (msg) title.group.add(game.add.bitmapText(85, 12, "font", msg, 16));
             if (restart) title.group.add(
                 game.add.bitmapText(10, 30, "font", "(space) to restart", 16));
+            title.group.x = game.camera.x / game.camera.scale.x;
         }
         // Called at the end of the frame.
         function updateText() {
@@ -202,8 +206,11 @@
                 textDisplay.text = null;
             }
 
-            if (gameState.endSequence && textDisplay.bitmapText) {
-                var diff = Math.min(255, Math.floor(255 * gameState.endSequence.presses  / 20));
+            if (gameState.endSequence.active && textDisplay.bitmapText) {
+                var diff = Math.min(255, Math.floor(255 * gameState.endSequence.step  / 50));
+                if (gameState.endSequence.highlightTimer > 0) {
+                    diff = Math.max(diff, 255 * gameState.endSequence.highlightTimer / 250);
+                }
                 textDisplay.bitmapText.tint = 0xFF0000 | (0xFF - diff) | ((0xFF - diff) << 8);
             }
 
@@ -531,15 +538,9 @@
             if (farmer.state.pickingUp == "gun") {
                 gun.sprite.visible = false;
                 if (farmer.state.x < kLakeEndX + fhw + 20) {
-                    gameState.endSequence.active = true;
                     showText("Press (space) to end it");
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                        console.log("Increment");
-                        gameState.endSequence.presses++;
-
-                        if (gameState.endSequence.presses == 10) {
-                            showTitle("The end.", true);
-                        }
+                        gameState.endSequence.active = true;
                     }
                 }
             }
@@ -658,11 +659,45 @@
             }
         }
 
-        function update() {    
-            boatTick();
-            farmerTick();
-            animalTick();
-            skyTick();
+        function endSequenceTick() {
+            showText("Press (space) to end it");
+            gameState.endSequence.highlightTimer -= game.time.elapsed;
+            gameState.endSequence.decrementTimer -= game.time.elapsed;
+            if (gameState.endSequence.decrementTimer <= 0) {
+                gameState.endSequence.decrementTimer = gameState.endSequence.rate;
+                gameState.endSequence.step = Math.max(0, gameState.endSequence.step - 1);
+            }
+            gameState.endSequence.rate = 1000 - (gameState.endSequence.step / 50) * 850;
+
+            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                gameState.endSequence.step++;
+                gameState.endSequence.highlightTimer = 250;
+                // Increment farmer sprite animation by number of presses.
+                // TODO: Change based on rate.
+            }
+
+            game.camera.shake(.0001 * gameState.endSequence.step, 100, true, Phaser.Camera.SHAKE_HORIZONTAL);
+
+            if (gameState.endSequence.step >= 50) {
+                // End of game.
+                showTitle("", false);
+                game.camera.shake(0, 0, true);
+                gameState.endSequence.active = false;
+            }
+
+            console.log(gameState.endSequence.step);
+        }
+
+        function update() {
+            if (game.time.elapsed > 1000) return;
+            if (gameState.endSequence.active) {
+                endSequenceTick();
+            } else {
+                boatTick();
+                farmerTick();
+                animalTick();
+                skyTick();
+            }
             
             switch(endingState) {
                 case "none":
