@@ -50,7 +50,9 @@
             },
             body: null,
             sprite: null,
+            deathBody: null,
             shadow: null,
+            width: 20
         };
 
         var goat = {
@@ -144,6 +146,8 @@
             }
         };
 
+        var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null;
+
         // Once a text is shown it stays shown until this method is not called.
         // Ignore calls to this if the game is in an ending state.
         function showText(msg) {
@@ -166,6 +170,16 @@
         function isFinished() {
             return goat.state.x > kLakeEndX &&
                 cabbage.state.x > kLakeEndX && wolf.state.x > kLakeEndX;
+        }
+
+        function playIfNotPlaying(key) {
+            if (audioKeyPlaying != key) {
+                // Stop all sounds.
+                backgroundMusic.stop();
+                audioPlaying = backgroundMusic.play(key);
+                audioKeyPlaying = key;
+
+            }
         }
 
         // Idempotent.
@@ -207,7 +221,7 @@
             }
 
             if (gameState.endSequence.active && textDisplay.bitmapText) {
-                var diff = Math.min(255, Math.floor(255 * gameState.endSequence.step  / 50));
+                var diff = Math.min(255, Math.floor(255 * gameState.endSequence.step  / 70));
                 if (gameState.endSequence.highlightTimer > 0) {
                     diff = Math.max(diff, 255 * gameState.endSequence.highlightTimer / 250);
                 }
@@ -296,6 +310,8 @@
             game.load.bitmapFont("font", "img/font.png", "img/font.fnt");
             game.load.image("barn-front", "img/barn-front.png");
             game.load.image("gun", "img/gun.png");
+            game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
+            game.load.audioSprite("music", "snd/music.mp3", "snd/music-meta.json?v3");
         }
 
         function create() {
@@ -324,6 +340,10 @@
             farmer.body.animations.add("walking", [1,2,3,4,5,6], 6);
             farmer.shadow = farmer.sprite.create(-8, 16, "farmer-shadow");
             farmer.sprite.add(farmer.body);
+            farmer.deathBody = game.add.sprite(0, -2, "farmer-death");
+            farmer.deathBody.anchor.set(.5, .5);
+            farmer.deathBody.animations.add("death", [13, 14, 15, 16, 17, 18, 19], 8, false);
+            farmer.sprite.add(farmer.deathBody);
 
             boat.sprite = game.add.sprite(0, 0, "boat");
             boat.sprite.anchor.set(.5, .5);
@@ -337,12 +357,14 @@
             gun.sprite = game.add.sprite(826, 111, "gun");
             gun.sprite.anchor.set(.5, .5);
 
+            backgroundMusic = game.add.audioSprite("music");
+
             loadState();
         }
 
         function farmerTick() {
             var fx = farmer.state.x;
-            var fhw = farmer.sprite.width / 2;
+            var fhw = farmer.width / 2;
 
             // Check for state transitions.
             if (!farmer.state.onStairs) {
@@ -526,24 +548,32 @@
                         farmer.state.floor = 1;
                     }
                 }
-                
             }
-            
-            // Apply farmer state to farmer sprite.
-            farmer.body.scale.set(farmer.state.dir, 1);
-            farmer.body.animations.play(farmer.state.body) // idempotent.
-            farmer.sprite.position.x = farmer.state.x;
-            farmer.sprite.position.y = yPos(farmer);
 
+            farmer.deathBody.visible = false;
+            farmer.body.visible = true;
+
+            // If on death area, show death body.
             if (farmer.state.pickingUp == "gun") {
                 gun.sprite.visible = false;
                 if (farmer.state.x < kLakeEndX + fhw + 20) {
+                    if (farmer.state.body == "idle") {
+                        farmer.body.visible = false;
+                        farmer.deathBody.visible = true;
+                    }
                     showText("Press (space) to end it");
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
                         gameState.endSequence.active = true;
                     }
                 }
             }
+            
+            // Apply farmer state to farmer sprite.
+            farmer.body.scale.set(farmer.state.dir, 1);
+            farmer.deathBody.scale.set(farmer.state.dir, 1);
+            farmer.body.animations.play(farmer.state.body) // idempotent.
+            farmer.sprite.position.x = farmer.state.x;
+            farmer.sprite.position.y = yPos(farmer);
         }
 
         // Assumes y positions have been set for actors.
@@ -660,29 +690,73 @@
         }
 
         function endSequenceTick() {
-            showText("Press (space) to end it");
-            gameState.endSequence.highlightTimer -= game.time.elapsed;
-            gameState.endSequence.decrementTimer -= game.time.elapsed;
-            if (gameState.endSequence.decrementTimer <= 0) {
-                gameState.endSequence.decrementTimer = gameState.endSequence.rate;
-                gameState.endSequence.step = Math.max(0, gameState.endSequence.step - 1);
-            }
-            gameState.endSequence.rate = 1000 - (gameState.endSequence.step / 50) * 850;
-
-            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                gameState.endSequence.step++;
-                gameState.endSequence.highlightTimer = 250;
-                // Increment farmer sprite animation by number of presses.
-                // TODO: Change based on rate.
+            function finished() {
+                return gameState.endSequence.step >= 70;
             }
 
-            game.camera.shake(.0001 * gameState.endSequence.step, 100, true, Phaser.Camera.SHAKE_HORIZONTAL);
+            function inRange(lower, higher) {
+                return gameState.endSequence.step >= lower && gameState.endSequence.step < higher;
+            }
 
-            if (gameState.endSequence.step >= 50) {
+            farmer.body.visible = false;
+            farmer.deathBody.visible = true;
+
+            if (!finished()) {
+                showText("Press (space) to end it");
+                farmer.deathBody.frame = 1;
+                gameState.endSequence.highlightTimer -= game.time.elapsed;
+                gameState.endSequence.decrementTimer -= game.time.elapsed;
+                if (gameState.endSequence.decrementTimer <= 0) {
+                    gameState.endSequence.decrementTimer = gameState.endSequence.rate;
+                    gameState.endSequence.step = Math.max(0, gameState.endSequence.step - 1);
+                }
+                gameState.endSequence.rate = 1000 - (gameState.endSequence.step / 70) * 850;
+
+                if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                    gameState.endSequence.step++;
+                    gameState.endSequence.highlightTimer = 250;
+                    // Increment farmer sprite animation by number of presses.
+                    // TODO: Change based on rate.
+                }
+
+                if (inRange(5, 10)) {
+                    farmer.deathBody.frame = 2;
+                } else if (inRange(10, 15)) {
+                    farmer.deathBody.frame = 3;
+                } else if (inRange(15, 20)) {
+                    farmer.deathBody.frame = 4;
+                } else if (inRange(20, 25)) {
+                    farmer.deathBody.frame = 5;
+                } else if (inRange(25, 30)) {
+                    farmer.deathBody.frame = 6;
+                } else if (inRange(30, 35)) {
+                    farmer.deathBody.frame = 7;
+                } else if (inRange(35, 40)) {
+                    farmer.deathBody.frame = 8;
+                } else if (inRange(40, 45)) {
+                    farmer.deathBody.frame = 9;
+                } else if (inRange(45, 50)) {
+                    farmer.deathBody.frame = 10;
+                } else if (inRange(50, 55)) {
+                    farmer.deathBody.frame = 11;
+                } else if (inRange(55, 70)) {
+                    farmer.deathBody.frame = 12;
+                }
+
+                game.camera.shake(.0001 * gameState.endSequence.step, 100, true, Phaser.Camera.SHAKE_HORIZONTAL);
+            } else {
+                // Wait one sec. TODO.
+
+                // Play shot animation
+                if (farmer.deathBody.frame <= 12) {
+                    farmer.deathBody.animations.play("death");
+                }
+
+                // Wait one sec.
                 // End of game.
                 showTitle("", false);
                 game.camera.shake(0, 0, true);
-                gameState.endSequence.active = false;
+                //gameState.endSequence.active = false;
             }
 
             console.log(gameState.endSequence.step);
@@ -697,6 +771,24 @@
                 farmerTick();
                 animalTick();
                 skyTick();
+            }
+
+            // Play background music.
+            if (gameState.day == 1) {
+                if (gameState.screen == "outside")
+                    playIfNotPlaying("bg");
+            } else {
+                if (gameState.endSequence.active) {
+                    if (audioKeyPlaying == "reverseNoise") {
+                        if (!audioPlaying.isPlaying) {
+                            playIfNotPlaying("noise");
+                        }
+                    } else if (audioKeyPlaying != "noise"){
+                        playIfNotPlaying("reverseNoise");
+                    }
+                } else if (gameState.screen == "outside") {
+                    playIfNotPlaying("reverse");
+                }
             }
             
             switch(endingState) {
