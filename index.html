@@ -58,7 +58,7 @@
             update: update
         }, false, false, null);
 
-        var bg, bgNight;
+        var bg, bgNight, bgNightOverlay;
         var kLakeStartX = 140, kLakeEndX = 360;
         var kBarnStartX = 768, kBarnStepStartX = 747;
         var kCamBeforeFarm = 550 - 300, kCamAfterFarm = 800 - 300, kCamBarn = 800;
@@ -168,7 +168,7 @@
 
         var gameState = {
             day: 1,
-            screen: "game", // menu, credits (TODO)
+            screen: "menu", // menu, credits (TODO)
             room: "outside", // barn
             sky: {
                 changing: false,
@@ -190,6 +190,7 @@
         var firstBoatRidden = false;
         var muteButton = document.getElementById("mute");
         var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null;
+        var noise = null, noiseState = "unstarted"; // fading, looping
 		
 		var timers = {}; // -1 means unlocked, 0 means finished, > 0 means counting down.
 		
@@ -257,7 +258,7 @@
             if (audioKeyPlaying != key) {
                 // Stop all sounds.
                 backgroundMusic.stop();
-                audioPlaying = backgroundMusic.play(key);
+                audioPlaying = backgroundMusic.play(key, 0, 1, true);
                 audioKeyPlaying = key;
             }
         }
@@ -300,7 +301,8 @@
 					
 					// End sequence should separate the word "(space)" TODO.
 					console.log("Changing");
-                    textDisplay.bitmapText = game.add.bitmapText(12, 127, "font", textDisplay.newText, 16);
+                    textDisplay.bitmapText = game.add.bitmapText(150, 134, "font", textDisplay.newText, 16);
+					textDisplay.bitmapText.anchor.set(.5, .5);
                     textDisplay.graphics.addChild(textDisplay.bitmapText);
                     textDisplay.text = textDisplay.newText;
 				}
@@ -382,7 +384,8 @@
         function preload() {
             game.load.image("title", "img/title.png");
             game.load.image("bg-night", "img/bg-night.png");
-            game.load.image("bg", "img/bg.png?v2");
+            game.load.image("bg", "img/bg.png?v3");
+            game.load.image("bg-night-overlay", "img/bg-night-overlay.png");
             game.load.image("farmer-shadow", "img/farmer-shadow.png");
             game.load.image("goat", "img/goat.png");
             game.load.image("wolf", "img/wolf.png");
@@ -393,7 +396,9 @@
             game.load.image("barn-front", "img/barn-front.png?v2");
             game.load.image("gun", "img/gun.png");
             game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
-            game.load.audioSprite("music", "snd/music.mp3", "snd/music-meta.json?v3");
+            //game.load.audioSprite("music", "snd/music.mp3", "snd/music-meta.json?v3");
+			game.load.audio("music", "snd/all.mp3");
+
         }
 
         function create() {
@@ -404,6 +409,15 @@
 
             bgNight = game.add.sprite(0, 0, "bg-night");
             bg = game.add.sprite(0, 0, "bg");
+			
+			// Add menu sprites.
+			game.add.sprite(1100 + 10, 10, "title");
+			game.add.bitmapText(1100 + 65, 50, "font", "wolf eats goat", 16);
+			game.add.bitmapText(1100 + 165, 50, "font", "goat eats cabbage", 16);
+			game.add.sprite(1100 + 35, 50, "wolf");
+			game.add.sprite(1100 + 139, 47, "goat");
+			game.add.sprite(1100 + 253, 55, "cabbage");
+			game.add.bitmapText(1100 + 107, 64, "font", "bring them across", 16);
 
             // Since sprite is updated with state, initial position is overwritten on first frame.
             goat.sprite = game.add.sprite(0, 0, "goat");
@@ -442,9 +456,19 @@
 			textDisplay.graphics = game.add.graphics(0, 0);
 			textDisplay.graphics.fixedToCamera = true;
 
-            backgroundMusic = game.add.audioSprite("music");
+            //backgroundMusic = game.add.audioSprite("music");
+			backgroundMusic = game.add.audio("music");
+			backgroundMusic.addMarker("bg", 106, 66, 1, true);
+			backgroundMusic.addMarker("reverse", 0, 43.4, 1, true);
 
-            // loadState();
+            noise = game.add.audio("music");
+            noise.addMarker("noiseStart", 43.4, 56.6, 1, false);
+            noise.addMarker("noise", 100, 5, 1, true);
+
+            bgNightOverlay = game.add.sprite(0, 0, "bg-night-overlay");
+            bgNightOverlay.alpha = 0;
+
+            loadState();
         }
 
 		// Check if farmer can get on/off boat.
@@ -503,7 +527,7 @@
                     } else {
                         farmer.state.x = fx = bx - bhw + fhw;
                         if (boat.state.body == "idle" && farmer.state.pickingUp == "none") {
-							setDisplayText("Press (space) to ride boat");
+							setDisplayText("(space) to ride boat");
 							if (isPressed(Phaser.KeyCode.SPACEBAR)) {
 								boat.state.body = "moving";
 								boat.state.side = "center";
@@ -518,7 +542,7 @@
                     } else {
                         farmer.state.x = fx = bx + bhw - fhw;
                         if (boat.state.body == "idle" && farmer.state.pickingUp == "none") {
-							setDisplayText("Press (space) to ride boat");
+							setDisplayText("(space) to ride boat");
 							if (isPressed(Phaser.KeyCode.SPACEBAR)) {
 								boat.state.body = "moving";
 								boat.state.side = "center";
@@ -541,7 +565,7 @@
 				if (farmer.state.pickingUp == "none") {
 					animals.forEach((actor, actorName) => {
 						if (Math.abs(farmer.state.x - actor.state.x) < 4) {
-							setDisplayText("Press (space) to pick up " + actorName)
+							setDisplayText("(space) to pick up " + actorName)
 							if (isPressed(Phaser.KeyCode.SPACEBAR)) {
 								farmer.state.pickingUp = actorName;
 								actor.state.body = "held";
@@ -551,7 +575,7 @@
 				} else {
 					// Ensure that no other animals occupy this spot.
 					// TODO.
-					setDisplayText("Press (space) to drop " + farmer.state.pickingUp);
+					setDisplayText("(space) to drop " + farmer.state.pickingUp);
 					if (isPressed(Phaser.KeyCode.SPACEBAR)) {
 						var animal = animals.get(farmer.state.pickingUp);
 						animal.state.body = "idle";
@@ -567,7 +591,7 @@
             if (farmer.state.pickingUp == "none") {
                 var gx = gun.sprite.x, ghw = gun.sprite.width / 2;
                 if (farmer.state.x > gx - ghw && farmer.state.x < gx + ghw) {
-                    setDisplayText("Press (space) to pick up gun");
+                    setDisplayText("(space) to pick up gun");
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
                         farmer.state.pickingUp = "gun";
                     }
@@ -665,14 +689,16 @@
             
             if (farmer.state.floor == 2 && gameState.day == 1 && farmer.state.x > 820 && farmer.state.x < 890) {
                 if (gameState.sky.timeToNight < 50000) {
-                    setDisplayText("Press (space) to sleep");
+                    setDisplayText("(space) to sleep");
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                        gameState.day = 2;
-                        boat.state.x = kLakeStartX + boat.sprite.width / 2;
-                        boat.state.side = "left";
+                        transitionState(1000, () => {
+                            gameState.day = 2;
+                            boat.state.x = kLakeStartX + boat.sprite.width / 2;
+                            boat.state.side = "left";
+                        });
                     }
                 } else {
-                    setDisplayText("Too early to sleep");
+                    setDisplayText("too early to sleep");
                 }
             }
             
@@ -688,7 +714,7 @@
                         farmer.body.visible = false;
                         farmer.deathBody.visible = true;
                     }
-                    setDisplayText("Press (space) to end it");
+                    setDisplayText("(space) to end it");
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
 						gameState.room = "end";
                     }
@@ -809,6 +835,7 @@
                     var opacity = gameState.sky.timeToNight / (60 * 1000);
                     opacity = Math.max(0, opacity);
                     bg.alpha = opacity;
+                    bgNightOverlay.alpha = 1 - opacity;
                 }
             } else {
                 bg.alpha = 1;
@@ -828,7 +855,7 @@
             farmer.deathBody.visible = true;
 
             if (!finished()) {
-                setDisplayText("Press (space) to end it");
+                setDisplayText("(space) to end it");
                 farmer.deathBody.frame = 1;
                 gameState.endSequence.highlightTimer -= game.time.elapsed;
                 gameState.endSequence.decrementTimer -= game.time.elapsed;
@@ -888,7 +915,7 @@
             console.log(gameState.endSequence.step);
         }
 
-        function cameraFollow(actor) {
+        function cameraFollow(actor) { // TODO: rename to update camera since this depends on room logic.
             var targetCameraX = actor.state.x * 3 - 450;
             var camDiff = targetCameraX - game.camera.x;
             if (Math.abs(camDiff) < .01) {
@@ -910,7 +937,7 @@
                 rightEnd = 3 * kCamBarn;
             } else if (gameState.room == "outside") {
                 if (!gameState.hasRiddenBoat) {
-                    rightSide = 0;
+                    rightEnd = 0;
                 } else {
                     rightEnd = 3 * kCamBeforeFarm;
                     if (isRiddleSolved()) {
@@ -928,7 +955,8 @@
         };
 
         roomTick["outside"] = function() {
-            playIfNotPlaying("bg");
+			if (gameState.day == 1) playIfNotPlaying("bg");
+			else playIfNotPlaying("reverse");
             boatTick();
             farmerTick();
             animalTick();
@@ -957,19 +985,36 @@
         roomTick["end"] = function() {
             farmerTick(); // TODO separate function?
 			endSequenceTick();
-            if (audioKeyPlaying == "reverseNoise") {
-                if (!audioPlaying.isPlaying) {
-                    playIfNotPlaying("noise");
+            playIfNotPlaying("reverse");
+
+            // Play the noise if not already.
+            if (noiseState == "unstarted") {
+                noise.play("noiseStart", 0, 1, false);
+                noiseState = "fading";
+            } else if (noiseState == "fading") {
+                if (!noise.isPlaying) {
+                    // Play the rest.
+                    noise.play("noise", 0, 1, true);
+                    noiseState = "looping";
                 }
-            } else if (audioKeyPlaying != "noise"){
-                playIfNotPlaying("reverseNoise");
             }
             cameraFollow(farmer);
         }
+		
+		screenTick["menu"] = function() {
+			setDisplayText("(space) to play");
+			tickDisplayText();
+			if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+				transitionState(1000, () => {
+					gameState.screen = "game";
+				});
+			}
+			game.camera.x = 1100 * 3;
+		}
 
         screenTick["game"] = function() {
             roomTick[gameState.room]();
-            if (audioPlaying) audioPlaying.volume = gameState.muted ? 0 : 1;
+            game.sound.mute = gameState.muted;
             tickDisplayText();
         }
 
