@@ -2,6 +2,7 @@ Bugs
 ----
 - Gun pickup location
 - After farmer sleep transition, farmer moves
+- Farmer moves position after
 
 Code cleaning
 -------------
@@ -11,14 +12,19 @@ Code cleaning
 
 Artwork
 -------
-- Animations for goat/wolf
+- Reduce land between barn and lake, increase size of lake to hide boat on ending sequence
+- Picking up animations [done]
+- Animations for goat/wolf/cabbage (eating, walking, dead, idle)
 - Add z-indexes layers
 - Staircase animation
 - In bed animation
 - Add homelike items to barn, define artwork for boards
+- Water movement please!!!
+
 - Add window to house, have sky overlay [done]
-- Reduce land between barn and lake
 - Water movement/waves
+- Remove shadows during night transition
+
 
 Misc
 ----

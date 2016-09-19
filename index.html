@@ -59,7 +59,7 @@
         }, false, false, null);
 
         var bg, bgNight, bgNightOverlay;
-        var kLakeStartX = 140, kLakeEndX = 360;
+        var kLakeStartX = 140, kLakeEndX = 370;
         var kBarnStartX = 768, kBarnStepStartX = 747;
         var kCamBeforeFarm = 550 - 300, kCamAfterFarm = 800 - 300, kCamBarn = 800;
         var kGroundY = 89;
@@ -103,7 +103,8 @@
             state: {
                 boat: "not_in",
                 x: 82,
-                y: 93
+                y: 93,
+                body: "idle", // dead
             },
             sprite: null,
         };
@@ -267,6 +268,7 @@
         function showTitle(msg, restart) {
             if (restart && isPressed(Phaser.KeyCode.SPACEBAR)) {
                 if (title.showing) title.group.destroy();
+                console.log("HERE");
                 title.showing = false;
                 restartGame();
                 return;
@@ -391,7 +393,7 @@
             game.load.image("wolf", "img/wolf.png");
             game.load.image("cabbage", "img/cabbage.png");
             game.load.image("boat", "img/boat.png?v2");
-            game.load.spritesheet("farmer", "img/farmer.png", 20, 44);
+            game.load.spritesheet("farmer", "img/farmer.png?v5", 30, 44);
             game.load.bitmapFont("font", "img/font.png", "img/font.fnt");
             game.load.image("barn-front", "img/barn-front.png?v2");
             game.load.image("gun", "img/gun.png");
@@ -434,6 +436,12 @@
             farmer.body.anchor.set(.5, .5);
             farmer.body.animations.add("idle", [0]);
             farmer.body.animations.add("walking", [1,2,3,4,5,6], 6);
+            farmer.body.animations.add("idle-cabbage", [7]);
+            farmer.body.animations.add("walking-cabbage", [8,9,10,11,12,13], 6);
+            farmer.body.animations.add("idle-goat", [14]);
+            farmer.body.animations.add("walking-goat", [15,16,17,18,19,20], 6);
+            farmer.body.animations.add("idle-wolf", [21]);
+            farmer.body.animations.add("walking-wolf", [22,23,24,25,26,27], 6);
             farmer.shadow = farmer.sprite.create(-8, 16, "farmer-shadow");
             farmer.sprite.add(farmer.body);
             farmer.deathBody = game.add.sprite(0, -2, "farmer-death");
@@ -724,7 +732,13 @@
             // Apply farmer state to farmer sprite.
             farmer.body.scale.set(farmer.state.dir, 1);
             farmer.deathBody.scale.set(farmer.state.dir, 1);
-            farmer.body.animations.play(farmer.state.body) // idempotent.
+            var farmerAnim = farmer.state.body;
+
+            // If the farmer is picking up an animal or gun, tack on to the current animation.
+            if (animals.has(farmer.state.pickingUp)) {
+                farmerAnim += "-" + farmer.state.pickingUp;
+            }
+            farmer.body.animations.play(farmerAnim) // idempotent.
             farmer.sprite.position.x = farmer.state.x;
             farmer.sprite.position.y = yPos(farmer);
         }
@@ -775,8 +789,11 @@
                    actor.state.boat = farmer.state.boat;
                    actor.state.x = farmer.sprite.position.x;
                    actor.state.y = 75;
+                   actor.state.dir = farmer.state.dir;
+                   actor.sprite.visible = false;
                 } else {
                    actor.state.y = 88;
+                   actor.sprite.visible = true;
                 }
             });
 
