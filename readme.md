@@ -1,8 +1,9 @@
 Bugs
 ----
 - Gun pickup location
-- Farmer moves position after on boat
-- Farmer walks on lake on day 2
+- Farmer moves position after on boat [done]
+- Farmer walks on lake on day 2 [done]
+- You can ride back on the boat during a restart menu
 
 Code cleaning
 -------------
@@ -15,8 +16,8 @@ Artwork
 - Reduce land between barn and lake, increase size of lake to hide boat on ending sequence [done]
 - Picking up animations [done]
 - In bed animation [done]
-- Fix nightime transition
-- Fix boat boundaries
+- Fix nightime transition [done]
+- Fix boat boundaries [done]
 - Staircase animation
 - Add homelike items to barn, define artwork for boards
 - Animations for goat/wolf/cabbage (eating, walking, dead, idle)
@@ -24,8 +25,8 @@ Artwork
 - Water movement please!!!
 
 - Add window to house, have sky overlay [done]
-- Water movement/waves
 - Remove shadows during night transition
+- Add animal shadows
 
 
 Misc

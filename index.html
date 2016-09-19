@@ -95,7 +95,7 @@
                 dir : 1,
                 body: "idle", // walking, eating, held, dead
                 boat: "not_in",
-                x: 50,
+                x: 55,
                 y: 88
             },
             sprite: null,
@@ -129,7 +129,7 @@
                 side: "left", // center/right
                 yOffset: 0,
                 x: 178,
-                y: 95
+                y: 98
             },
             sprite: null,
         };
@@ -305,7 +305,6 @@
                     textDisplay.graphics.endFill();
 					
 					// End sequence should separate the word "(space)" TODO.
-					console.log("Changing");
                     textDisplay.bitmapText = game.add.bitmapText(150, 134, "font", textDisplay.newText, 16);
 					textDisplay.bitmapText.anchor.set(.5, .5);
                     textDisplay.graphics.addChild(textDisplay.bitmapText);
@@ -387,8 +386,8 @@
             return actor.state.y + (actor.state.boat == "in" ? boat.state.yOffset : 0);
         }
 
-        function capX(actor, lower, upper) {
-            var hw = actor.sprite.width / 2;
+        function capX(actor, width, lower, upper) {
+            var hw = width / 2;
             if (actor.state.x - hw < lower) actor.state.x = lower + hw;
             if (actor.state.x + hw > upper) actor.state.x = upper - hw;
         }
@@ -402,7 +401,8 @@
             game.load.image("goat", "img/goat.png");
             game.load.image("wolf", "img/wolf.png");
             game.load.image("cabbage", "img/cabbage.png");
-            game.load.image("boat", "img/boat.png?v2");
+            game.load.image("boat", "img/boat.png?v3");
+            game.load.image("boat-back", "img/boat-back.png");
             game.load.spritesheet("farmer", "img/farmer.png?v5", 30, 44);
             game.load.image("farmer-sleeping", "img/farmer-sleeping.png");
             game.load.bitmapFont("font", "img/font.png", "img/font.fnt");
@@ -432,12 +432,15 @@
 			game.add.sprite(kCamMenu + 253, 55, "cabbage");
 			game.add.bitmapText(kCamMenu + 107, 64, "font", "bring them across", 16);
 
+            boat.back = game.add.sprite(0, 0, "boat-back");
+            boat.back.anchor.set(.5, .5);
+
             // Since sprite is updated with state, initial position is overwritten on first frame.
             goat.sprite = game.add.sprite(0, 0, "goat");
             goat.sprite.anchor.set(.5, .5);
 
             cabbage.sprite = game.add.sprite(0, 0, "cabbage");
-            cabbage.sprite.anchor.set(.5, .5);
+            cabbage.sprite.anchor.set(.5, 0);
 
             wolf.sprite = game.add.sprite(0, 0, "wolf");
             wolf.sprite.anchor.set(.5, .5);
@@ -541,14 +544,14 @@
                 var bhw = boat.sprite.width / 2;
 
                 // If the boat is moving, keep the farmer inside.
-                if (boat.state.body == "moving") capX(farmer, bx - bhw, bx + bhw);
+                if (boat.state.body == "moving") capX(farmer, farmer.width, bx - bhw + 3, bx + bhw - 3);
 
-                if (fx - fhw <= bx - bhw) {
+                if (fx - fhw <= bx - bhw + 3) {
                     if (boat.state.side == "left") {
                         farmer.state.boat = "not_in";
-                        farmer.state.x = kLakeStartX - fhw;
+                        farmer.state.x = kLakeStartX - fhw - 2;
                     } else {
-                        farmer.state.x = fx = bx - bhw + fhw;
+                        farmer.state.x = fx = bx - bhw + fhw + 3;
                         if (boat.state.body == "idle" && farmer.state.pickingUp == "none") {
 							setDisplayText("(space) to ride boat");
 							if (isPressed(Phaser.KeyCode.SPACEBAR)) {
@@ -558,12 +561,12 @@
 							}
                         }
                     }
-                } else if (fx + fhw >= bx + bhw) {
+                } else if (fx + fhw >= bx + bhw - 3) {
                     if (boat.state.side == "right") {
                         farmer.state.boat = "not_in";
-                        farmer.state.x = kLakeEndX + fhw;
+                        farmer.state.x = kLakeEndX + fhw + 2;
                     } else {
-                        farmer.state.x = fx = bx + bhw - fhw;
+                        farmer.state.x = fx = bx + bhw - fhw - 3;
                         if (boat.state.body == "idle" && farmer.state.pickingUp == "none") {
 							setDisplayText("(space) to ride boat");
 							if (isPressed(Phaser.KeyCode.SPACEBAR)) {
@@ -611,6 +614,7 @@
         };
 
         farmerDayTick[2] = function() {
+            var fhw = farmer.width / 2;
             if (farmer.state.pickingUp == "none") {
                 var gx = gun.sprite.x, ghw = gun.sprite.width / 2;
                 if (farmer.state.x > gx - ghw && farmer.state.x < gx + ghw) {
@@ -619,6 +623,10 @@
                         farmer.state.pickingUp = "gun";
                     }
                 }
+            }
+            if (farmer.state.x < kLakeEndX + fhw + 20) {
+                // Ensure farmer is well within right boundary so blood stays on ground.
+                farmer.state.x = kLakeEndX + fhw + 20;
             }
         };
 
@@ -735,7 +743,7 @@
             // If on death area, show death body.
             if (gameState.room == "outside" && farmer.state.pickingUp == "gun") {
                 gun.sprite.visible = false;
-                if (farmer.state.x < kLakeEndX + fhw + 20) {
+                if (fx < kLakeEndX + fhw + 35) {
                     if (farmer.state.body == "idle") {
                         farmer.body.visible = false;
                         farmer.deathBody.visible = true;
@@ -746,6 +754,7 @@
                     }
                 }
             }
+
             // If sleeping, show sleeping body
             if (farmer.state.body == "sleeping") {
                 farmer.sleepingBody.visible = true;
@@ -795,6 +804,7 @@
             // Apply boat state to boat sprite.
             boat.sprite.position.x = boat.state.x;
             boat.sprite.position.y = boat.state.y + boat.state.yOffset;
+            boat.back.position.set(boat.sprite.position.x, boat.sprite.position.y);
         }
 
         function animalTick() {
@@ -872,7 +882,8 @@
             if (gameState.day == 1) {
                 if (gameState.sky.active) {
                     gameState.sky.timeToNight -= game.time.elapsed;
-                    var opacity = gameState.sky.timeToNight / (60 * 1000);
+                    // First ten seconds don't experience change
+                    var opacity = Math.min(1, gameState.sky.timeToNight / (50 * 1000));
                     opacity = Math.max(0, opacity);
                     bg.alpha = opacity;
                     bgNightOverlay.alpha = 1 - opacity;
