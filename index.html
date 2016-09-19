@@ -71,7 +71,7 @@
                 dir: 1,
                 frameIndex: 0,
                 boat: "not_in", // in
-                body: "idle", // walking, stairsUp, stairsDown
+                body: "idle", // walking, stairsUp, stairsDown, sleeping
                 pickingUp: "none", // goat, wolf, cabbage, gun
                 x: 100,
                 y: 80,
@@ -85,6 +85,7 @@
             body: null,
             sprite: null,
             deathBody: null,
+            sleepingBody: null,
             shadow: null,
             width: 20
         };
@@ -271,7 +272,6 @@
         function showTitle(msg, restart) {
             if (restart && isPressed(Phaser.KeyCode.SPACEBAR)) {
                 if (title.showing) title.group.destroy();
-                console.log("HERE");
                 title.showing = false;
                 restartGame();
                 return;
@@ -395,15 +395,16 @@
 
         function preload() {
             game.load.image("title", "img/title.png");
-            game.load.image("bg-night", "img/bg-night.png");
+            game.load.image("bg-night", "img/bg-night.png?v3");
             game.load.image("bg", "img/bg.png?v4");
-            game.load.image("bg-night-overlay", "img/bg-night-overlay.png");
+            game.load.image("bg-night-overlay", "img/bg-night-overlay.png?v2");
             game.load.image("farmer-shadow", "img/farmer-shadow.png");
             game.load.image("goat", "img/goat.png");
             game.load.image("wolf", "img/wolf.png");
             game.load.image("cabbage", "img/cabbage.png");
             game.load.image("boat", "img/boat.png?v2");
             game.load.spritesheet("farmer", "img/farmer.png?v5", 30, 44);
+            game.load.image("farmer-sleeping", "img/farmer-sleeping.png");
             game.load.bitmapFont("font", "img/font.png", "img/font.fnt");
             game.load.image("barn-front", "img/barn-front.png?v2");
             game.load.image("gun", "img/gun.png");
@@ -454,10 +455,14 @@
             farmer.body.animations.add("walking-wolf", [22,23,24,25,26,27], 6);
             farmer.shadow = farmer.sprite.create(-8, 16, "farmer-shadow");
             farmer.sprite.add(farmer.body);
+
             farmer.deathBody = game.add.sprite(0, -2, "farmer-death");
             farmer.deathBody.anchor.set(.5, .5);
             farmer.deathBody.animations.add("death", [13, 14, 15, 16, 17, 18, 19], 8, false);
             farmer.sprite.add(farmer.deathBody);
+
+            farmer.sleepingBody = game.add.sprite(kCamBarn + 42, 48, "farmer-sleeping");
+            farmer.sleepingBody.visible = false;
 
             boat.sprite = game.add.sprite(0, 0, "boat");
             boat.sprite.anchor.set(.5, .5);
@@ -684,9 +689,9 @@
                         }
                     }
                 } else {
-                    if (fx >= 1000 && fx < 1012 && isPressed(Phaser.KeyCode.UP)) {
+                    if (fx >= 850 && fx < 862 && isPressed(Phaser.KeyCode.UP)) {
                         farmer.state.onStairs = true;
-                    } else if (fx >= 1040 && fx <= 1060 && isPressed(Phaser.KeyCode.DOWN)) {
+                    } else if (fx >= 890 && fx <= 910 && isPressed(Phaser.KeyCode.DOWN)) {
                         farmer.state.onStairs = true;
                     }
                 }
@@ -700,19 +705,21 @@
                     } else if (farmer.state.floor == 2) {
                         farmer.state.x = fx = kCamBarn;
                     }
-                } else if (fx > 1100 - fhw) {
-                    farmer.state.x = fx = 1100 - fhw;
+                } else if (fx > kCamBarn + 300 - fhw) {
+                    farmer.state.x = kCamBarn + 300 - fhw;
                 }
             }
             
-            if (farmer.state.floor == 2 && gameState.day == 1 && farmer.state.x > 820 && farmer.state.x < 890) {
+            if (farmer.state.floor == 2 && gameState.day == 1 && farmer.state.x > 670 && farmer.state.x < 740) {
                 if (gameState.sky.timeToNight < 50000) {
                     setDisplayText("(space) to sleep");
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                        transitionState(1000, () => {
+                        farmer.state.body = "sleeping";
+                        transitionState(3000, () => {
                             gameState.day = 2;
                             boat.state.x = kLakeStartX + boat.sprite.width / 2;
                             boat.state.side = "left";
+                            farmer.state.body = "idle";
                         });
                     }
                 } else {
@@ -722,6 +729,7 @@
             
 
             farmer.deathBody.visible = false;
+            farmer.sleepingBody.visible = false;
             farmer.body.visible = true;
 
             // If on death area, show death body.
@@ -738,12 +746,17 @@
                     }
                 }
             }
+            // If sleeping, show sleeping body
+            if (farmer.state.body == "sleeping") {
+                farmer.sleepingBody.visible = true;
+                farmer.body.visible = false;
+            }
             
             // Apply farmer state to farmer sprite.
             farmer.body.scale.set(farmer.state.dir, 1);
             farmer.deathBody.scale.set(farmer.state.dir, 1);
-            var farmerAnim = farmer.state.body;
 
+            var farmerAnim = farmer.state.body;
             // If the farmer is picking up an animal or gun, tack on to the current animation.
             if (animals.has(farmer.state.pickingUp)) {
                 farmerAnim += "-" + farmer.state.pickingUp;
@@ -866,6 +879,7 @@
                 }
             } else {
                 bg.alpha = 1;
+                bgNightOverlay.alpha = 0;
             }
         }
 
