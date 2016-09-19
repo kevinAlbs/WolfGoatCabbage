@@ -60,8 +60,9 @@
 
         var bg, bgNight, bgNightOverlay;
         var kLakeStartX = 140, kLakeEndX = 370;
-        var kBarnStartX = 768, kBarnStepStartX = 747;
-        var kCamBeforeFarm = 550 - 300, kCamAfterFarm = 800 - 300, kCamBarn = 800;
+        var kBarnStartX = 618, kBarnStepStartX = 597;
+        var kCamBeforeFarm = 190, kCamAfterFarm = 650 - 300, kCamBarn = 650;
+        var kCamMenu = 950, kCamEnd = 950;
         var kGroundY = 89;
 		var cameraIceBroken = false; // set to true on the first boat trip.
 
@@ -186,6 +187,8 @@
 			hasRiddenBoat: false
         };
 
+        var stateJustReset = false;
+
         // Map state names to implementing functions.
         var screenTick = {}, roomTick = {}, farmerDayTick = {};
         var firstBoatRidden = false;
@@ -247,7 +250,7 @@
 
         function isRiddleSolved() {
             var solved = true;
-            animals.forEach((animal) => { solved = solved && animal.state.x >= kLakeEndX });
+            animals.forEach((animal, animalName) => { solved = solved && animal.state.x >= kLakeEndX && farmer.state.pickingUp != animalName; });
             return solved;
         }
 
@@ -347,6 +350,7 @@
 			Phaser.Utils.extend(true, boat.state, state.boat);
 			Phaser.Utils.extend(true, gameState, state.gameState);
             updateMuteButton();
+            stateJustReset = true;
         }
 
         function tempSet() {
@@ -355,6 +359,12 @@
             cabbage.state.x = kLakeEndX + 40;
             farmer.state.x = kLakeEndX + 50;
 			gameState.hasRiddenBoat = true;
+        }
+
+        function tempSet2() {
+            wolf.state.x = kLakeEndX + 20;
+            cabbage.state.x = kLakeEndX + 40;
+            gameState.hasRiddenBoat = true;   
         }
 
         function saveState() {
@@ -386,7 +396,7 @@
         function preload() {
             game.load.image("title", "img/title.png");
             game.load.image("bg-night", "img/bg-night.png");
-            game.load.image("bg", "img/bg.png?v3");
+            game.load.image("bg", "img/bg.png?v4");
             game.load.image("bg-night-overlay", "img/bg-night-overlay.png");
             game.load.image("farmer-shadow", "img/farmer-shadow.png");
             game.load.image("goat", "img/goat.png");
@@ -413,13 +423,13 @@
             bg = game.add.sprite(0, 0, "bg");
 			
 			// Add menu sprites.
-			game.add.sprite(1100 + 10, 10, "title");
-			game.add.bitmapText(1100 + 65, 50, "font", "wolf eats goat", 16);
-			game.add.bitmapText(1100 + 165, 50, "font", "goat eats cabbage", 16);
-			game.add.sprite(1100 + 35, 50, "wolf");
-			game.add.sprite(1100 + 139, 47, "goat");
-			game.add.sprite(1100 + 253, 55, "cabbage");
-			game.add.bitmapText(1100 + 107, 64, "font", "bring them across", 16);
+			game.add.sprite(kCamMenu + 10, 10, "title");
+			game.add.bitmapText(kCamMenu + 65, 50, "font", "wolf eats goat", 16);
+			game.add.bitmapText(kCamMenu + 165, 50, "font", "goat eats cabbage", 16);
+			game.add.sprite(kCamMenu + 35, 50, "wolf");
+			game.add.sprite(kCamMenu + 139, 47, "goat");
+			game.add.sprite(kCamMenu + 253, 55, "cabbage");
+			game.add.bitmapText(kCamMenu + 107, 64, "font", "bring them across", 16);
 
             // Since sprite is updated with state, initial position is overwritten on first frame.
             goat.sprite = game.add.sprite(0, 0, "goat");
@@ -456,9 +466,9 @@
                 keysDownHandled[keyEvent.keyCode] = false;
             };
             
-            game.add.sprite(755, 35, "barn-front");
+            game.add.sprite(605, 35, "barn-front");
 
-            gun.sprite = game.add.sprite(826, 111, "gun");
+            gun.sprite = game.add.sprite(676, 111, "gun");
             gun.sprite.anchor.set(.5, .5);
 			
 			textDisplay.graphics = game.add.graphics(0, 0);
@@ -935,9 +945,13 @@
         function cameraFollow(actor) { // TODO: rename to update camera since this depends on room logic.
             var targetCameraX = actor.state.x * 3 - 450;
             var camDiff = targetCameraX - game.camera.x;
-            if (Math.abs(camDiff) < .01) {
+            if (Math.abs(camDiff) < .01 || stateJustReset) {
                 game.camera.x = targetCameraX;
             } else {
+                var maxCamDelta = 100;
+                if (Math.abs(camDiff) > maxCamDelta) {
+                    camDiff = Math.sign(camDiff) * maxCamDelta;
+                }
                 game.camera.x += game.time.elapsed * camDiff * .002;
             }
 
@@ -949,7 +963,7 @@
             game.camera.x = Math.max(leftEnd, game.camera.x);
 
             // Based on state, set camera right end. TODO: make this a hard clamping.
-            var rightEnd = 1200 * 3;
+            var rightEnd = kCamEnd * 3;
             if (gameState.room == "barn") {
                 rightEnd = 3 * kCamBarn;
             } else if (gameState.room == "outside") {
@@ -1026,13 +1040,19 @@
 					gameState.screen = "game";
 				});
 			}
-			game.camera.x = 1100 * 3;
+			game.camera.x = kCamMenu * 3;
 		}
 
         screenTick["game"] = function() {
+            // Check here so reset flag gets one single run.
+            var resetStateRestFlag = false;
+            if (stateJustReset) resetStateRestFlag = true;
+
             roomTick[gameState.room]();
             game.sound.mute = gameState.muted;
             tickDisplayText();
+
+            if (resetStateRestFlag) stateJustReset = false;
         }
 
         function update() {
