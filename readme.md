@@ -14,7 +14,7 @@ Code cleaning
 Artwork
 -------
 - Staircase animation
-- Add homelike items to barn, define artwork for boards
+- Add homelike items to barn
 - Animations for goat/wolf/cabbage (eating, walking, dead, idle) [done]
 - Add z-indexes layers
 - Water movement please!!!
