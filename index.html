@@ -96,7 +96,7 @@
                 body: "idle", // walking, eating, held, dead
                 boat: "not_in",
                 x: 55,
-                y: 88
+                y: 93
             },
             sprite: null,
         };
@@ -106,7 +106,7 @@
                 boat: "not_in",
                 x: 82,
                 y: 93,
-                body: "idle", // dead
+                body: "idle", // dead, held
             },
             sprite: null,
         };
@@ -398,9 +398,9 @@
             game.load.image("bg", "img/bg.png?v4");
             game.load.image("bg-night-overlay", "img/bg-night-overlay.png?v2");
             game.load.image("farmer-shadow", "img/farmer-shadow.png");
-            game.load.image("goat", "img/goat.png");
-            game.load.image("wolf", "img/wolf.png");
-            game.load.image("cabbage", "img/cabbage.png");
+            game.load.spritesheet("goat", "img/goat.png?v2", 25, 20);
+            game.load.spritesheet("wolf", "img/wolf.png?v3", 31, 20);
+            game.load.spritesheet("cabbage", "img/cabbage.png", 12, 8);
             game.load.image("boat", "img/boat.png?v3");
             game.load.image("boat-back", "img/boat-back.png");
             game.load.spritesheet("farmer", "img/farmer.png?v5", 30, 44);
@@ -435,16 +435,6 @@
             boat.back = game.add.sprite(0, 0, "boat-back");
             boat.back.anchor.set(.5, .5);
 
-            // Since sprite is updated with state, initial position is overwritten on first frame.
-            goat.sprite = game.add.sprite(0, 0, "goat");
-            goat.sprite.anchor.set(.5, .5);
-
-            cabbage.sprite = game.add.sprite(0, 0, "cabbage");
-            cabbage.sprite.anchor.set(.5, 0);
-
-            wolf.sprite = game.add.sprite(0, 0, "wolf");
-            wolf.sprite.anchor.set(.5, .5);
-
             farmer.sprite = game.add.group();
             farmer.body = game.add.sprite(0, 0, "farmer");
             farmer.body.anchor.set(.5, .5);
@@ -466,6 +456,25 @@
 
             farmer.sleepingBody = game.add.sprite(kCamBarn + 42, 48, "farmer-sleeping");
             farmer.sleepingBody.visible = false;
+
+            cabbage.sprite = game.add.sprite(0, 0, "cabbage");
+            cabbage.sprite.anchor.set(.5, 0);
+            cabbage.sprite.animations.add("idle", [0]);
+            cabbage.sprite.animations.add("dead", [1]);
+
+            wolf.sprite = game.add.sprite(0, 0, "wolf");
+            wolf.sprite.anchor.set(.5, .5);
+            wolf.sprite.animations.add("idle", [1, 2, 0, 2], 6);
+            wolf.sprite.animations.add("walking", [3, 4, 5, 6], 8);
+            wolf.sprite.animations.add("eating", [7, 8, 9, 10], 5);
+
+            // Since sprite is updated with state, initial position is overwritten on first frame.
+            goat.sprite = game.add.sprite(0, 0, "goat");
+            goat.sprite.anchor.set(.5, .5);
+            goat.sprite.animations.add("idle", [0]);
+            goat.sprite.animations.add("walking", [1,2,3,4,5,6,7,8], 5);
+            goat.sprite.animations.add("eating", [9,10,11], 3);
+            goat.sprite.animations.add("dead", [12]);
 
             boat.sprite = game.add.sprite(0, 0, "boat");
             boat.sprite.anchor.set(.5, .5);
@@ -504,7 +513,7 @@
 			
 		    // Check for getting in or out of boat.
             if (farmer.state.boat == "not_in") {
-                farmer.shadow.visible = true;
+                farmer.shadow.visible = false; // TEMP
                 var leftDiff = (fx + fhw) - kLakeStartX;
                 var rightDiff = kLakeEndX - (fx - fhw);
 				// Check if farmer is within the lake boundaries.
@@ -520,7 +529,7 @@
 					if (boat.state.side != "left") {
 						fx = farmer.state.x = kLakeStartX - fhw;
 					} else if (boatFilled) {
-						setDisplayText("Not enough room");
+						setDisplayText("not enough room");
 						fx = farmer.state.x = kLakeStartX - fhw;
 					} else {
 						fx = farmer.state.x = boat.state.x - 20;
@@ -530,7 +539,7 @@
 					if (boat.state.side != "right") {
 						fx = farmer.state.x = kLakeEndX + fhw;
 					} else if (boatFilled) {
-						setDisplayText("Not enough room");
+						setDisplayText("not enough room");
 					} else {
 						fx = farmer.state.x = boat.state.x + 20;
 						farmer.state.boat = "in";
@@ -821,11 +830,11 @@
                 if (actor.state.body == "held") {
                    actor.state.boat = farmer.state.boat;
                    actor.state.x = farmer.sprite.position.x;
-                   actor.state.y = 75;
+                   //actor.state.y = 75;
                    actor.state.dir = farmer.state.dir;
                    actor.sprite.visible = false;
                 } else {
-                   actor.state.y = 88;
+                   //actor.state.y = 88;
                    actor.sprite.visible = true;
                 }
             });
@@ -842,7 +851,7 @@
 
             if (wolf.state.body == "walking") {
                 var diff = goat.state.x - wolf.state.x;
-                if (Math.abs(diff) > 10) {
+                if (Math.abs(diff) > 13) {
                     wolf.state.dir = Math.sign(diff);
                     wolf.state.x += .05 * wolf.state.dir * game.time.elapsed;
                 } else {
@@ -856,9 +865,9 @@
 
             if (goat.state.body == "walking") {
                 var diff = cabbage.state.x - goat.state.x;
-                if (Math.abs(diff) > 5) {
+                if (Math.abs(diff) > 10) {
                     goat.state.dir = Math.sign(diff);
-                    goat.state.x += .05 * goat.state.dir * game.time.elapsed;
+                    goat.state.x += .04 * goat.state.dir * game.time.elapsed;
                 } else {
                     goat.state.body = "eating";
                     cabbage.state.body = "dead";
@@ -873,9 +882,12 @@
                 actor.sprite.position.x = actor.state.x;
                 actor.sprite.position.y = yPos(actor);
             });
-            cabbage.sprite.scale.set(1, cabbage.state.body == "dead" ? -1 : 1);
-            goat.sprite.scale.set(goat.state.dir, goat.state.body == "dead" ? -1 : 1);
+
+            cabbage.sprite.animations.play(cabbage.state.body);
+            goat.sprite.scale.set(goat.state.dir, 1);
+            goat.sprite.animations.play(goat.state.body);
             wolf.sprite.scale.set(wolf.state.dir, 1);
+            wolf.sprite.animations.play(wolf.state.body);
         }
         
         function skyTick() {
