@@ -87,7 +87,6 @@
             sprite: null,
             deathBody: null,
             sleepingBody: null,
-            shadow: null,
             width: 20
         };
 
@@ -164,6 +163,7 @@
 
         var restartState = null;
 
+        var isTransitioning = false, isFadingOut = false;
         var transition = {
             active: false,
             startTime: 0,
@@ -222,15 +222,19 @@
             timers[key] = -1;
         }
         
-        var isTransitioning = false;
         function transitionState(duration, callback) {
             if (isTransitioning) return;
             isTransitioning = true;
+            isFadingOut = true;
             game.camera.onFadeComplete.add(() => {
                 callback();
+                isFadingOut = false;
                 game.camera.onFlashComplete.add(() => {
                     isTransitioning = false;
-                    game.camera.resetFX(); // Clear current event listeners.
+                    // Clear current event listeners.
+                    game.camera.onFadeComplete.removeAll();
+                    game.camera.onFlashComplete.removeAll();
+                    game.camera.resetFX();
                 });
                 game.camera.flash(0x000000, duration, true)
             });
@@ -277,14 +281,18 @@
                 restartGame();
                 return;
             }
-            if (title.showing) return;
+
+            if (title.showing) {
+                title.group.x = game.camera.x / game.camera.scale.x;
+                return;
+            }
             title.showing = true;
             title.group = game.add.group();
             title.group.add(game.add.sprite(10, 10, "title"));
             if (msg) title.group.add(game.add.bitmapText(85, 12, "font", msg, 16));
             if (restart) title.group.add(
                 game.add.bitmapText(10, 30, "font", "(space) to restart", 16));
-            title.group.x = game.camera.x / game.camera.scale.x;
+            
         }
         
         // This must be called each frame to display continuously.
@@ -398,7 +406,6 @@
             game.load.image("bg-night", "img/bg-night.png?v3");
             game.load.image("bg", "img/bg.png?v4");
             game.load.image("bg-night-overlay", "img/bg-night-overlay.png?v2");
-            game.load.image("farmer-shadow", "img/farmer-shadow.png");
             game.load.spritesheet("goat", "img/goat.png?v2", 25, 20);
             game.load.spritesheet("wolf", "img/wolf.png?v3", 31, 20);
             game.load.spritesheet("cabbage", "img/cabbage.png", 12, 8);
@@ -436,6 +443,9 @@
             boat.back = game.add.sprite(0, 0, "boat-back");
             boat.back.anchor.set(.5, .5);
 
+            gun.sprite = game.add.sprite(778, 40, "gun");
+            gun.sprite.anchor.set(.5, .5);
+
             farmer.sprite = game.add.group();
             farmer.body = game.add.sprite(0, 0, "farmer");
             farmer.body.anchor.set(.5, .5);
@@ -449,7 +459,6 @@
             farmer.body.animations.add("walking-wolf", [22,23,24,25,26,27], 6);
             farmer.body.animations.add("stairs-1", [28,29,30], 6);
             farmer.body.animations.add("stairs-2", [31,32,33], 6);
-            farmer.shadow = farmer.sprite.create(-8, 16, "farmer-shadow");
             farmer.sprite.add(farmer.body);
 
             farmer.deathBody = game.add.sprite(0, -2, "farmer-death");
@@ -487,9 +496,6 @@
             };
             
             game.add.sprite(605, 35, "barn-front");
-
-            gun.sprite = game.add.sprite(676, 111, "gun");
-            gun.sprite.anchor.set(.5, .5);
             
             textDisplay.graphics = game.add.graphics(0, 0);
             textDisplay.graphics.fixedToCamera = true;
@@ -516,7 +522,6 @@
             
             // Check for getting in or out of boat.
             if (farmer.state.boat == "not_in") {
-                farmer.shadow.visible = false; // TEMP
                 var leftDiff = (fx + fhw) - kLakeStartX;
                 var rightDiff = kLakeEndX - (fx - fhw);
                 // Check if farmer is within the lake boundaries.
@@ -550,7 +555,6 @@
                 }
             } 
             if (farmer.state.boat == "in") {
-                farmer.shadow.visible = false;
                 // Check if farmer can get out of boat.
                 var bx = boat.state.x;
                 var bhw = boat.sprite.width / 2;
@@ -602,6 +606,7 @@
             var fhw = farmer.width / 2;
             
             if (!isRiddleSolved()) {
+                fx = farmer.state.x = Math.min(fx, kCamBeforeFarm + 300 - fhw);
                 // Check for picking up or dropping animals.
                 if (farmer.state.pickingUp == "none") {
                     animals.forEach((actor, actorName) => {
@@ -614,8 +619,6 @@
                         }
                     });
                 } else {
-                    // Ensure that no other animals occupy this spot.
-                    // TODO.
                     setDisplayText("(space) to drop " + farmer.state.pickingUp);
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
                         var animal = animals.get(farmer.state.pickingUp);
@@ -632,10 +635,11 @@
             var fhw = farmer.width / 2;
             if (farmer.state.pickingUp == "none") {
                 var gx = gun.sprite.x, ghw = gun.sprite.width / 2;
-                if (farmer.state.x > gx - ghw && farmer.state.x < gx + ghw) {
+                if (farmer.state.floor == 2 && farmer.state.x > gx - ghw && farmer.state.x < gx + ghw) {
                     setDisplayText("(space) to pick up gun");
                     if (isPressed(Phaser.KeyCode.SPACEBAR)) {
                         farmer.state.pickingUp = "gun";
+                        gun.sprite.visible = false;
                     }
                 }
             }
@@ -645,12 +649,17 @@
             }
         };
 
-        function farmerTick() {
+        function farmerStateTransitions() {
             var fx = farmer.state.x;
             var fhw = farmer.width / 2;
 
+            if (losingScene != "none") {
+                if (farmer.state.body == "walking") farmer.state.body = "idle";
+                return;
+            }
+
             // Check for state transitions.
-            if (farmer.state.body == "walking" && !isTransitioning)
+            if (farmer.state.body == "walking")
                 farmer.state.x = fx = fx + farmer.state.dir * .035 * game.time.elapsed;
 
             if (farmer.state.body == "walking" || farmer.state.body == "idle") {
@@ -664,6 +673,10 @@
                 } else {
                     farmer.state.body = "idle";
                 }
+            }
+
+            if (isTransitioning && farmer.state.body == "walking") {
+                farmer.state.body = "idle";
             }
 
             farmerDayTick[gameState.day]();
@@ -680,12 +693,10 @@
                     });
                 } else if (farmer.state.x > kBarnStepStartX) {
                     farmer.state.y = 73;
-                    farmer.shadow.visible = false;
                 } else if (fx <= fhw) {
                     farmer.state.x = fx = fhw;
                 }
             } else if (gameState.room == "barn") {
-                farmer.shadow.visible = false;
                 if (!farmer.state.onStairs) farmer.state.y = farmer.state.floor == 1 ? 124 : 50;
 
                 // Check if the farmer is on or entering the staircase.
@@ -747,9 +758,9 @@
                             farmer.state.x = fx = kBarnStartX - 1;
                             gameState.room = "outside";
                         });
-                    } else if (farmer.state.floor == 2) {
-                        farmer.state.x = fx = kCamBarn;
                     }
+                } else if (fx <= kCamBarn + fhw && farmer.state.floor == 2) {
+                    farmer.state.x = fx = kCamBarn + fhw;
                 } else if (fx > kCamBarn + 300 - fhw) {
                     farmer.state.x = kCamBarn + 300 - fhw;
                 }
@@ -771,7 +782,10 @@
                     setDisplayText("too early to sleep");
                 }
             }
-            
+        }
+
+        function farmerTick() {
+            farmerStateTransitions();
 
             farmer.deathBody.visible = false;
             farmer.sleepingBody.visible = false;

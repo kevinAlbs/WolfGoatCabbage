@@ -1,9 +1,5 @@
 Bugs
 ----
-- Gun pickup location
-- You can ride back on the boat during a restart menu
-- Farmer can walk beyond first boundary!
-- Farmer walks during transitions...
 - Red flash no longer works
 - Farmer does seem to move out of bed if he goes outside before sleeping oddly enough
 
