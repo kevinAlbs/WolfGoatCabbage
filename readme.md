@@ -4,6 +4,8 @@ Bugs
 - You can ride back on the boat during a restart menu
 - Farmer can walk beyond first boundary!
 - Farmer walks during transitions...
+- Red flash no longer works
+- Farmer does seem to move out of bed if he goes outside before sleeping oddly enough
 
 Code cleaning
 -------------
@@ -13,9 +15,7 @@ Code cleaning
 
 Artwork
 -------
-- Staircase animation
 - Add homelike items to barn
-- Animations for goat/wolf/cabbage (eating, walking, dead, idle) [done]
 - Add z-indexes layers
 - Water movement please!!!
 - Remove shadows during night transition
