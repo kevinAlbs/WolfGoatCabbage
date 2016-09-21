@@ -322,7 +322,7 @@
                 textDisplay.text = textDisplay.newText;
             }
 
-            if (gameState.endSequence.active && textDisplay.bitmapText) {
+            if (gameState.room == "end" && textDisplay.bitmapText) {
                 var diff = Math.min(255, Math.floor(255 * gameState.endSequence.step  / 70));
                 if (gameState.endSequence.highlightTimer > 0) {
                     diff = Math.max(diff, 255 * gameState.endSequence.highlightTimer / 250);
@@ -786,7 +786,8 @@
 
         function farmerTick() {
             farmerStateTransitions();
-
+            var fx = farmer.state.x;
+            var fhw = farmer.width / 2;
             farmer.deathBody.visible = false;
             farmer.sleepingBody.visible = false;
             farmer.body.visible = true;
