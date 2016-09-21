@@ -61,15 +61,13 @@
         var bg, bgNight, bgNightOverlay;
         var kLakeStartX = 140, kLakeEndX = 370;
         var kBarnStartX = 618, kBarnStepStartX = 597;
-        var kCamBeforeFarm = 190, kCamAfterFarm = 650 - 300, kCamBarn = 650;
+        var kCamBeforeFarm = 190, kCamAfterFarm = 650 - 300, kCamBarn = 650; // TODO: remove kCamBarn constant in favor of position
         var kCamMenu = 950, kCamEnd = 950;
         var kGroundY = 89;
-        var cameraIceBroken = false; // set to true on the first boat trip.
 
         var farmer = {
             state: {
                 dir: 1,
-                frameIndex: 0,
                 boat: "not_in", // in
                 body: "idle", // walking, stairs, sleeping
                 pickingUp: "none", // goat, wolf, cabbage, gun
@@ -79,10 +77,6 @@
                 floor: 1
             },
             stairsAnimPlaying: 0, // 1 for left, 2 for right
-            kFrames: {
-                "idle": [0],
-                "walking": [1, 2, 3, 4, 5, 6]
-            },
             body: null,
             sprite: null,
             deathBody: null,
@@ -99,6 +93,8 @@
                 y: 93
             },
             sprite: null,
+            width: 24,
+            goingForKill: false,
         };
 
         var cabbage = {
@@ -109,6 +105,7 @@
                 body: "idle", // dead, held
             },
             sprite: null,
+            width: 12
         };
 
         var wolf = {
@@ -120,6 +117,8 @@
                 y: 94
             },
             sprite: null,
+            width: 26,
+            goingForKill: false,
         };
 
         var boat = {
@@ -132,10 +131,12 @@
                 y: 98
             },
             sprite: null,
+            width: 69
         };
 
         var gun = {
-            sprite: null
+            sprite: null,
+            width: 23
         };
 
         var textDisplay = {
@@ -185,7 +186,7 @@
                 rate: 1000, // rate at which clock step decreases. Decreases as step increases.
                 highlightTimer: 0, // highlights the (space)
             },
-            muted: false, // TODO!
+            muted: false,
             hasRiddenBoat: false
         };
 
@@ -193,23 +194,13 @@
 
         // Map state names to implementing functions.
         var screenTick = {}, roomTick = {}, farmerDayTick = {};
-        var firstBoatRidden = false;
         var muteButton = document.getElementById("mute");
         var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null;
         var noise = null, noiseState = "unstarted"; // fading, looping
         
         var timers = {}; // -1 means unlocked, 0 means finished, > 0 means counting down.
-        
-        function updateMuteButton() {
-            muteButton.setAttribute("data-muted", gameState.muted ? "true" : "false");
-        }
-        
-        // I break pattern for transition/wait for callbacks to simplify code. I would like to change this because
-        // if event occurs in the midst of another function working with the same state, assumptions are lost, e.g.
-        // if (state == "X") do Y; but state can change in between the if and the "do Y" with a callback.
-        
-        // Caller's responsibility to unlock timer.
-        function wait(duration, key) {
+        // Caller's responsibility to reset timer.
+        function timerWait(key, duration) {
             if (!timers.hasOwnProperty(key) || timers[key] == -1) {
                 timers[key] = duration;
             }
@@ -218,10 +209,17 @@
             return timers[key];
         };
         
-        function unlock(key) {
+        function timerReset(key) {
             timers[key] = -1;
         }
-        
+
+        function updateMuteButton() {
+            muteButton.setAttribute("data-muted", gameState.muted ? "true" : "false");
+        }
+
+        // I break pattern for transition/wait for callbacks to simplify code. I would like to change this because
+        // if event occurs in the midst of another function working with the same state, assumptions are lost, e.g.
+        // if (state == "X") do Y; but state can change in between the if and the "do Y" with a callback.
         function transitionState(duration, callback) {
             if (isTransitioning) return;
             isTransitioning = true;
@@ -381,9 +379,7 @@
 
         function loadState() {
             var state = JSON.parse(window.localStorage.getItem("state"));
-            if (state) {
-                setCompleteState(state);
-            }
+            if (state) setCompleteState(state);
         }
 
         function clearState() {
@@ -395,8 +391,8 @@
             return actor.state.y + (actor.state.boat == "in" ? boat.state.yOffset : 0);
         }
 
-        function capX(actor, width, lower, upper) {
-            var hw = width / 2;
+        function boundX(actor, lower, upper) {
+            var hw = actor.width / 2;
             if (actor.state.x - hw < lower) actor.state.x = lower + hw;
             if (actor.state.x + hw > upper) actor.state.x = upper - hw;
         }
@@ -417,9 +413,7 @@
             game.load.image("barn-front", "img/barn-front.png?v2");
             game.load.image("gun", "img/gun.png");
             game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
-            //game.load.audioSprite("music", "snd/music.mp3", "snd/music-meta.json?v3");
             game.load.audio("music", "snd/all.mp3");
-
         }
 
         function create() {
@@ -491,6 +485,7 @@
             boat.sprite = game.add.sprite(0, 0, "boat");
             boat.sprite.anchor.set(.5, .5);
 
+            // Is setting equal ok?
             game.input.keyboard.onUpCallback = function(keyEvent) {
                 keysDownHandled[keyEvent.keyCode] = false;
             };
@@ -500,7 +495,6 @@
             textDisplay.graphics = game.add.graphics(0, 0);
             textDisplay.graphics.fixedToCamera = true;
 
-            //backgroundMusic = game.add.audioSprite("music");
             backgroundMusic = game.add.audio("music");
             backgroundMusic.addMarker("bg", 106, 66, 1, true);
             backgroundMusic.addMarker("reverse", 0, 43.4, 1, true);
@@ -561,7 +555,7 @@
 
                 // If the boat is moving or the losing scene is occuring, keep the farmer inside.
                 if (boat.state.body == "moving") {
-                    capX(farmer, farmer.width, bx - bhw + 3, bx + bhw - 3);
+                    boundX(farmer, bx - bhw + 3, bx + bhw - 3);
                 } else {
                     // Farmer can only get out of the boat if the game is not lost.
                     if (fx - fhw <= bx - bhw + 3) {
@@ -892,14 +886,31 @@
                 }
             });
 
+            // Check if the losing scene should occur.
             if (boat.state.body == "moving") {
-                var side = (actor) => { return actor.state.x <= kLakeStartX; }
-                if (side(wolf) == side(goat) && wolf.state.boat == "not_in" && goat.state.boat == "not_in") {
+                if (lakeSide(wolf) == lakeSide(goat) && wolf.state.boat == "not_in"
+                    && goat.state.boat == "not_in") {
                     losingScene = "wolf_eats_goat";
-                }
-                if (side(goat) == side(cabbage) && goat.state.boat == "not_in" && cabbage.state.boat == "not_in") {
+                } else if (lakeSide(goat) == lakeSide(cabbage) && goat.state.boat == "not_in"
+                    && cabbage.state.boat == "not_in") {
                     losingScene = "goat_eats_cabbage";
                 }
+            }
+
+            if (losingScene == "wolf_eats_goat" && !wolf.goingForKill && timerWait("losingDelay", 1000) == 0) {
+                wolf.goingForKill = true;
+                timerReset("losingDelay");
+            } else if (losingScene == "goat_eats_cabbage" && !goat.goingForKill && timerWait("losingDelay", 1000) == 0) {
+                goat.goingForKill = true;
+                timerReset("losingDelay");
+            }
+
+            if (wolf.goingForKill) {
+                wolf.state.body = "walking";
+            }
+
+            if (goat.goingForKill) {
+                goat.state.body = "walking";
             }
 
             if (wolf.state.body == "walking") {
@@ -909,6 +920,7 @@
                     wolf.state.x += .05 * wolf.state.dir * game.time.elapsed;
                 } else {
                     wolf.state.body = "eating";
+                    wolf.goingForKill = false;
                     goat.state.body = "dead";
                 }
             } else if (wolf.state.body == "eating") {
@@ -922,6 +934,7 @@
                     goat.state.dir = Math.sign(diff);
                     goat.state.x += .04 * goat.state.dir * game.time.elapsed;
                 } else {
+                    goat.goingForKill = false;
                     goat.state.body = "eating";
                     cabbage.state.body = "dead";
                 }
@@ -1032,47 +1045,44 @@
             console.log(gameState.endSequence.step);
         }
 
-        function cameraFollow(actor) { // TODO: rename to update camera since this depends on room logic.
-            var targetCameraX = actor.state.x * 3 - 450;
-            var camDiff = targetCameraX - game.camera.x;
-            if (Math.abs(camDiff) < .01 || stateJustReset) {
-                game.camera.x = targetCameraX;
-            } else {
-                var maxCamDelta = 100;
-                if (Math.abs(camDiff) > maxCamDelta) {
-                    camDiff = Math.sign(camDiff) * maxCamDelta;
-                }
-                game.camera.x += game.time.elapsed * camDiff * .002;
-            }
+        function cameraTick() {
+            // If targetActor is null, then targetPosition is the assumed camera position.
+            var targetActor = null, targetPosition = 0;
 
-            // Clamp camera offset.
-            var leftEnd = 0;
-            if (gameState.room == "barn") {
-                leftEnd = 3 * kCamBarn;
-            }
-            game.camera.x = Math.max(leftEnd, game.camera.x);
+            if (gameState.screen == "menu") targetPosition = kCamMenu * 3;
+            else if (gameState.room == "end") targetActor = farmer;
+            else if (gameState.room == "barn") targetPosition = kCamBarn * 3;
+            else if (!gameState.hasRiddenBoat) targetPosition = 0;
+            else if (losingScene == "wolf_eats_goat") targetActor = wolf;
+            else if (losingScene == "goat_eats_cabbage") targetActor = goat;
+            else targetActor = farmer; // outside, not losing, boat ridden.
 
-            // Based on state, set camera right end. TODO: make this a hard clamping.
-            var rightEnd = kCamEnd * 3;
-            if (gameState.room == "barn") {
-                rightEnd = 3 * kCamBarn;
-            } else if (gameState.room == "outside") {
-                if (!gameState.hasRiddenBoat) {
-                    rightEnd = 0;
+            if (targetActor) {
+                var targetCameraX = targetActor.state.x * 3 - 450;
+                var camDiff = targetCameraX - game.camera.x;
+                if (Math.abs(camDiff) < .01 || stateJustReset) {
+                    game.camera.x = targetCameraX;
                 } else {
-                    rightEnd = 3 * kCamBeforeFarm;
-                    if (isRiddleSolved()) {
-                        rightEnd = 3 * kCamAfterFarm;
+                    var maxCamDelta = 100;
+                    if (Math.abs(camDiff) > maxCamDelta) {
+                        camDiff = Math.sign(camDiff) * maxCamDelta;
                     }
+                    game.camera.x += game.time.elapsed * camDiff * .002;
                 }
+                var rightEnd = rightEnd = 3 * kCamBeforeFarm;
+                if (isRiddleSolved()) {
+                    rightEnd = 3 * kCamAfterFarm;
+                }
+                game.camera.x = Math.max(0, game.camera.x);
+                game.camera.x = Math.min(rightEnd, game.camera.x);
+            } else {
+                game.camera.x = targetPosition;
             }
-            game.camera.x = Math.min(rightEnd, game.camera.x);
         }
 
         roomTick["barn"] = function() {
             farmerTick();
             skyTick();
-            cameraFollow(farmer);
         };
 
         roomTick["outside"] = function() {
@@ -1082,25 +1092,6 @@
             farmerTick();
             animalTick();
             skyTick();
-
-            switch(losingScene) {
-                case "none":
-                    cameraFollow(farmer);
-                    break;
-                case "wolf_eats_goat":
-                    if (wolf.state.body == "idle" && farmer.state.x > kLakeStartX + 120) {
-                        wolf.state.body = "walking";
-                    }
-                    cameraFollow(wolf);
-                    break;
-                case "goat_eats_cabbage":
-                    if (goat.state.body == "idle" && farmer.state.x > kLakeStartX + 120) {
-                        goat.state.body = "walking";
-                    }
-                    cameraFollow(goat);
-                    break;
-            }
-
         };
 
         roomTick["end"] = function() {
@@ -1119,7 +1110,6 @@
                     noiseState = "looping";
                 }
             }
-            cameraFollow(farmer);
         }
         
         screenTick["menu"] = function() {
@@ -1130,7 +1120,6 @@
                     gameState.screen = "game";
                 });
             }
-            game.camera.x = kCamMenu * 3;
         }
 
         screenTick["game"] = function() {
@@ -1149,6 +1138,7 @@
             // Ignore large time deltas to avoid big jumps.
             if (game.time.elapsed > 1000) return;
             screenTick[gameState.screen]();
+            cameraTick();
         }
 
         muteButton.addEventListener("click", () => {
