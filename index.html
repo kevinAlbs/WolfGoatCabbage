@@ -391,6 +391,24 @@
             return actor.state.y + (actor.state.boat == "in" ? boat.state.yOffset : 0);
         }
 
+        function boundCheckActor(actor1, actor2) {
+            var a2hw = actor2.width / 2;
+            return boundCheck(actor1, actor2.state.x - a2hw, actor2.state.x + a2hw);
+        }
+
+        // Returns -1 if left of, +1 if right of, 0 if inside.
+        function boundCheck(actor, lower, upper) {
+            var hw = actor.width / 2;
+            if (actor.state.x - hw < lower) return "left";
+            if (actor.state.x + hw > upper) return "right";
+            return "in";
+        }
+
+        function boundXActor(actor1, actor2) {
+            var a2hw = actor2.width / 2;
+            return boundX(actor1, actor2.state.x - a2hw, actor2.state.x + a2hw);
+        }
+
         function boundX(actor, lower, upper) {
             var hw = actor.width / 2;
             if (actor.state.x - hw < lower) actor.state.x = lower + hw;
@@ -509,24 +527,20 @@
             loadState();
         }
 
-        // Check if farmer can get on/off boat.
+        // Checks if farmer can get on or off boat, and may bound farmer position to lake exterior.
         function farmerBoatTick() {
-            var fx = farmer.state.x;
-            var fhw = farmer.width / 2;
-            
+            var fx = farmer.state.x, fw = farmer.width, fhw = farmer.width / 2;
+            var farmerSide = Math.abs(fx - kLakeStartX) < Math.abs(fx - kLakeEndX) ? "left" : "right";
+
             // Check for getting in or out of boat.
-            if (farmer.state.boat == "not_in") {
-                var leftDiff = (fx + fhw) - kLakeStartX;
-                var rightDiff = kLakeEndX - (fx - fhw);
-                // Check if farmer is within the lake boundaries.
-                if (rightDiff < 0 || leftDiff < 0) return;
+            if (farmer.state.boat == "not_in" && boundCheck(farmer, kLakeStartX - fw, kLakeEndX + fw) == "in") {
                 var boatFilled = false;
                 animals.forEach((animal) => {
                     boatFilled = boatFilled || animal.state.boat == "in";
                 });
                 boatFilled = boatFilled && farmer.state.pickingUp != "none";
                 
-                if (leftDiff < rightDiff) {
+                if (farmerSide == "left") {
                     // Farmer is attempting to get in from the left end of the lake.
                     if (boat.state.side != "left") {
                         fx = farmer.state.x = kLakeStartX - fhw;
@@ -547,46 +561,44 @@
                         farmer.state.boat = "in";
                     }
                 }
-            } 
+            }
+
             if (farmer.state.boat == "in") {
                 // Check if farmer can get out of boat.
-                var bx = boat.state.x;
-                var bhw = boat.sprite.width / 2;
-
-                // If the boat is moving or the losing scene is occuring, keep the farmer inside.
+                var bx = boat.state.x, bhw = boat.sprite.width / 2;
+                var farmerBoundCheck = boundCheck(farmer, bx - bhw + 4, bx + bhw - 4);
+                var boundFarmer = () => { boundX(farmer, bx - bhw + 3, bx + bhw - 3); }
+                // Cannot leave if boat is moving or the farmer on opposite side.
                 if (boat.state.body == "moving") {
-                    boundX(farmer, bx - bhw + 3, bx + bhw - 3);
+                    boundFarmer();
                 } else {
-                    // Farmer can only get out of the boat if the game is not lost.
-                    if (fx - fhw <= bx - bhw + 3) {
+                    // Farmer can leave if he is moving towards the side he's on, otherwise
+                    // prompt to ride the boat to the other side.
+                    if (farmerBoundCheck == "left") {
                         if (boat.state.side == "left") {
                             farmer.state.boat = "not_in";
                             farmer.state.x = kLakeStartX - fhw - 2;
                         } else {
-                            farmer.state.x = fx = bx - bhw + fhw + 3;
-                            if (boat.state.body == "idle" && farmer.state.pickingUp == "none") {
-                                setDisplayText("(space) to ride boat");
-                                if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                                    boat.state.body = "moving";
-                                    boat.state.side = "center";
-                                    boat.state.dir = -1;
-                                }
+                            boundFarmer();
+                            setDisplayText("(space) to ride boat");
+                            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                                boat.state.body = "moving";
+                                boat.state.side = "center";
+                                boat.state.dir = -1;
                             }
                         }
-                    } else if (fx + fhw >= bx + bhw - 3) {
+                    } else if (farmerBoundCheck == "right") {
                         if (boat.state.side == "right") {
                             farmer.state.boat = "not_in";
                             farmer.state.x = kLakeEndX + fhw + 2;
                         } else {
-                            farmer.state.x = fx = bx + bhw - fhw - 3;
-                            if (boat.state.body == "idle" && farmer.state.pickingUp == "none") {
-                                setDisplayText("(space) to ride boat");
-                                if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                                    boat.state.body = "moving";
-                                    boat.state.side = "center";
-                                    boat.state.dir = 1;
-                                    gameState.hasRiddenBoat = true;
-                                }
+                            boundFarmer();
+                            setDisplayText("(space) to ride boat");
+                            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                                boat.state.body = "moving";
+                                boat.state.side = "center";
+                                boat.state.dir = 1;
+                                gameState.hasRiddenBoat = true;
                             }
                         }
                     }
