@@ -66,6 +66,7 @@
         var kGroundY = 89;
         var kLeft = -1, kRight = 1, kCenter = 0;
         var kIn = 0, kNotIn = 1;
+        var water = [];
 
         var farmer = {
             state: {
@@ -439,6 +440,7 @@
             game.load.image("gun", "img/gun.png");
             game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
             game.load.audio("music", "snd/all.mp3");
+            game.load.image("water", "img/water.png?v2");
         }
 
         function create() {
@@ -530,6 +532,13 @@
 
             bgNightOverlay = game.add.sprite(0, 0, "bg-night-overlay");
             bgNightOverlay.alpha = 0;
+
+            for (var i = 0; i < 200; i++) {
+                var ws = game.add.sprite(150 + i, 100, "water");
+                ws.anchor.set(.5, 0);
+                ws.vel = 0;
+                water.push(ws);
+            }
 
             loadState();
         }
@@ -1030,6 +1039,9 @@
         }
 
         function cameraTick() {
+            // TEMP
+            game.camera.x = 300;
+            return;
             // If targetActor is null, then targetPosition is the assumed camera position.
             var targetActor = null, targetPosition = 0;
 
@@ -1061,6 +1073,29 @@
                 game.camera.x = Math.min(rightEnd, game.camera.x);
             } else {
                 game.camera.x = targetPosition;
+            }
+        }
+
+        var waterMark = 1;
+        function waterTick() {
+            for (var i = 0; i < water.length; i++) {
+                var prevY = water[i].y, nextY = water[i].y, thisY = water[i].y;
+                if (i > 0) prevY = water[i-1].y;
+                if (i < water.length - 1) nextY = water[i+1].y;
+
+                if (i > 0 && i < water.length - 1) {
+                    // Move towards average point.
+                    var d1 = water[i-1].y - water[i].y;
+                    var d2 = water[i+1].y - water[i].y;
+                    var d1w = Math.abs(d1) - Math.abs(d2) ? .55 : .45;
+                    var d2w = 1 - d1w;
+                    var weightedAvg = d1w * d1 + d2w * d2;
+                    water[i].y += weightedAvg;
+                } else {
+                    water[i].vel += .1 * Math.sign(100 - water[i].y);
+                    water[i].y += .1 * water[i].vel;
+                    water[i].vel *= .99;
+                }
             }
         }
 
@@ -1114,7 +1149,7 @@
             roomTick[gameState.room]();
             game.sound.mute = gameState.muted;
             tickDisplayText();
-
+            waterTick();
             if (resetStateRestFlag) stateJustReset = false;
         }
 
