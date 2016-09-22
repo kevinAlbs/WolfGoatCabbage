@@ -64,11 +64,13 @@
         var kCamBeforeFarm = 190, kCamAfterFarm = 650 - 300, kCamBarn = 650; // TODO: remove kCamBarn constant in favor of position
         var kCamMenu = 950, kCamEnd = 950;
         var kGroundY = 89;
+        var kLeft = -1, kRight = 1, kCenter = 0;
+        var kIn = 0, kNotIn = 1;
 
         var farmer = {
             state: {
                 dir: 1,
-                boat: "not_in", // in
+                boat: kNotIn, // in
                 body: "idle", // walking, stairs, sleeping
                 pickingUp: "none", // goat, wolf, cabbage, gun
                 x: 100,
@@ -81,14 +83,15 @@
             sprite: null,
             deathBody: null,
             sleepingBody: null,
-            width: 20
+            width: 20,
+            readyToDie: false
         };
 
         var goat = {
             state: {
                 dir : 1,
                 body: "idle", // walking, eating, held, dead
-                boat: "not_in",
+                boat: kNotIn,
                 x: 55,
                 y: 93
             },
@@ -99,7 +102,7 @@
 
         var cabbage = {
             state: {
-                boat: "not_in",
+                boat: kNotIn,
                 x: 82,
                 y: 93,
                 body: "idle", // dead, held
@@ -112,7 +115,7 @@
             state: {
                 dir : 1,
                 body: "idle", // walking, eating, held
-                boat: "not_in",
+                boat: kNotIn,
                 x: 20,
                 y: 94
             },
@@ -125,7 +128,7 @@
             state: {
                 body: "idle", // moving
                 dir: 1,
-                side: "left", // center/right
+                side: kLeft, // center/right
                 yOffset: 0,
                 x: 178,
                 y: 98
@@ -189,7 +192,6 @@
             muted: false,
             hasRiddenBoat: false
         };
-
         var stateJustReset = false;
 
         // Map state names to implementing functions.
@@ -197,8 +199,9 @@
         var muteButton = document.getElementById("mute");
         var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null;
         var noise = null, noiseState = "unstarted"; // fading, looping
-        
+
         var timers = {}; // -1 means unlocked, 0 means finished, > 0 means counting down.
+
         // Caller's responsibility to reset timer.
         function timerWait(key, duration) {
             if (!timers.hasOwnProperty(key) || timers[key] == -1) {
@@ -208,7 +211,7 @@
             if (timers[key] <= 0) timers[key] = 0;
             return timers[key];
         };
-        
+
         function timerReset(key) {
             timers[key] = -1;
         }
@@ -252,6 +255,12 @@
             }
         }
 
+        function isDown(keycode) {
+            if (losingScene == "none" && !isTransitioning) {
+                return game.input.keyboard.isDown(keycode);
+            }
+        }
+
         function isRiddleSolved() {
             var solved = true;
             animals.forEach((animal, animalName) => { solved = solved && animal.state.x >= kLakeEndX && farmer.state.pickingUp != animalName; });
@@ -259,7 +268,7 @@
         }
 
         function lakeSide(obj) {
-            return obj.state.x <= kLakeStartX ? "left" : "right";
+            return obj.state.x <= kLakeStartX ? kLeft : kRight;
         }
 
         function playIfNotPlaying(key) {
@@ -290,14 +299,13 @@
             if (msg) title.group.add(game.add.bitmapText(85, 12, "font", msg, 16));
             if (restart) title.group.add(
                 game.add.bitmapText(10, 30, "font", "(space) to restart", 16));
-            
         }
-        
+
         // This must be called each frame to display continuously.
         function setDisplayText(msg) {
             if (losingScene == "none") textDisplay.newText = msg;
         }
-        
+
         // Called at the end of the frame to render whichever text is displayed last.
         function tickDisplayText() {
             // If the text display has been created or changed, we need to re-render.
@@ -305,12 +313,11 @@
                 // Display created/changed text.
                 textDisplay.graphics.removeChildren();
                 textDisplay.graphics.clear();
-                
                 if (textDisplay.newText != null) {
                     textDisplay.graphics.beginFill(0x000000);
                     textDisplay.graphics.drawRect(10, 130, 280, 11);
                     textDisplay.graphics.endFill();
-                    
+
                     // End sequence should separate the word "(space)" TODO.
                     textDisplay.bitmapText = game.add.bitmapText(150, 134, "font", textDisplay.newText, 16);
                     textDisplay.bitmapText.anchor.set(.5, .5);
@@ -388,7 +395,7 @@
 
         // Applies boat offset if on boat.
         function yPos(actor) {
-            return actor.state.y + (actor.state.boat == "in" ? boat.state.yOffset : 0);
+            return actor.state.y + (actor.state.boat == kIn ? boat.state.yOffset : 0);
         }
 
         function boundCheckActor(actor1, actor2) {
@@ -396,12 +403,12 @@
             return boundCheck(actor1, actor2.state.x - a2hw, actor2.state.x + a2hw);
         }
 
-        // Returns -1 if left of, +1 if right of, 0 if inside.
+        // Returns -1 if left of, +1 if right of, 0 if strictly inside.
         function boundCheck(actor, lower, upper) {
             var hw = actor.width / 2;
-            if (actor.state.x - hw < lower) return "left";
-            if (actor.state.x + hw > upper) return "right";
-            return "in";
+            if (actor.state.x - hw < lower) return kLeft;
+            if (actor.state.x + hw > upper) return kRight;
+            return kIn;
         }
 
         function boundXActor(actor1, actor2) {
@@ -442,7 +449,7 @@
 
             bgNight = game.add.sprite(0, 0, "bg-night");
             bg = game.add.sprite(0, 0, "bg");
-            
+
             // Add menu sprites.
             game.add.sprite(kCamMenu + 10, 10, "title");
             game.add.bitmapText(kCamMenu + 65, 50, "font", "wolf eats goat", 16);
@@ -507,9 +514,9 @@
             game.input.keyboard.onUpCallback = function(keyEvent) {
                 keysDownHandled[keyEvent.keyCode] = false;
             };
-            
+
             game.add.sprite(605, 35, "barn-front");
-            
+
             textDisplay.graphics = game.add.graphics(0, 0);
             textDisplay.graphics.fixedToCamera = true;
 
@@ -530,87 +537,74 @@
         // Checks if farmer can get on or off boat, and may bound farmer position to lake exterior.
         function farmerBoatTick() {
             var fx = farmer.state.x, fw = farmer.width, fhw = farmer.width / 2;
-            var farmerSide = Math.abs(fx - kLakeStartX) < Math.abs(fx - kLakeEndX) ? "left" : "right";
+            var farmerSide = Math.abs(fx - kLakeStartX) < Math.abs(fx - kLakeEndX) ? kLeft : kRight;
 
             // Check for getting in or out of boat.
-            if (farmer.state.boat == "not_in" && boundCheck(farmer, kLakeStartX - fw, kLakeEndX + fw) == "in") {
+            if (farmer.state.boat == kNotIn
+                && boundCheck(farmer, kLakeStartX - fw, kLakeEndX + fw) == kIn) {
+                // Farmer is at lake boundary.
                 var boatFilled = false;
                 animals.forEach((animal) => {
-                    boatFilled = boatFilled || animal.state.boat == "in";
+                    boatFilled = boatFilled || animal.state.boat == kIn;
                 });
                 boatFilled = boatFilled && farmer.state.pickingUp != "none";
-                
-                if (farmerSide == "left") {
-                    // Farmer is attempting to get in from the left end of the lake.
-                    if (boat.state.side != "left") {
+
+                if (farmerSide == kLeft) {
+                    if (boat.state.side != kLeft) {
                         fx = farmer.state.x = kLakeStartX - fhw;
                     } else if (boatFilled) {
                         setDisplayText("not enough room");
                         fx = farmer.state.x = kLakeStartX - fhw;
                     } else {
                         fx = farmer.state.x = boat.state.x - 20;
-                        farmer.state.boat = "in";
+                        farmer.state.boat = kIn;
                     }
                 } else {
-                    if (boat.state.side != "right") {
+                    if (boat.state.side != kRight) {
                         fx = farmer.state.x = kLakeEndX + fhw;
                     } else if (boatFilled) {
                         setDisplayText("not enough room");
                     } else {
                         fx = farmer.state.x = boat.state.x + 20;
-                        farmer.state.boat = "in";
+                        farmer.state.boat = kIn;
                     }
                 }
             }
 
-            if (farmer.state.boat == "in") {
+            if (farmer.state.boat == kIn) {
                 // Check if farmer can get out of boat.
                 var bx = boat.state.x, bhw = boat.sprite.width / 2;
                 var farmerBoundCheck = boundCheck(farmer, bx - bhw + 4, bx + bhw - 4);
-                var boundFarmer = () => { boundX(farmer, bx - bhw + 3, bx + bhw - 3); }
+                console.log(farmerBoundCheck);
+                var boundFarmer = () => { boundX(farmer, bx - bhw + 3, bx + bhw - 3); };
                 // Cannot leave if boat is moving or the farmer on opposite side.
                 if (boat.state.body == "moving") {
                     boundFarmer();
                 } else {
-                    // Farmer can leave if he is moving towards the side he's on, otherwise
-                    // prompt to ride the boat to the other side.
-                    if (farmerBoundCheck == "left") {
-                        if (boat.state.side == "left") {
-                            farmer.state.boat = "not_in";
-                            farmer.state.x = kLakeStartX - fhw - 2;
-                        } else {
-                            boundFarmer();
-                            setDisplayText("(space) to ride boat");
-                            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                                boat.state.body = "moving";
-                                boat.state.side = "center";
-                                boat.state.dir = -1;
-                            }
-                        }
-                    } else if (farmerBoundCheck == "right") {
-                        if (boat.state.side == "right") {
-                            farmer.state.boat = "not_in";
-                            farmer.state.x = kLakeEndX + fhw + 2;
-                        } else {
-                            boundFarmer();
-                            setDisplayText("(space) to ride boat");
-                            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                                boat.state.body = "moving";
-                                boat.state.side = "center";
-                                boat.state.dir = 1;
-                                gameState.hasRiddenBoat = true;
-                            }
+                    // Farmer can leave if he is moving towards the same side as the boat.
+                    // Farmer can ride the boat to the other side if he's moving towards that side.
+                    if (farmerBoundCheck == boat.state.side) {
+                        // Leave on same side.
+                        farmer.state.boat = kNotIn;
+                        farmer.state.x = farmerBoundCheck == kLeft ? kLakeStartX - fhw - 2 : kLakeEndX + fhw + 2;
+                    } else if (farmerBoundCheck == boat.state.side * -1) {
+                        // Prompt to ride.
+                        boundFarmer();
+                        setDisplayText("(space) to ride boat");
+                        if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                            boat.state.body = "moving";
+                            boat.state.side = "center";
+                            boat.state.dir = farmerBoundCheck;
                         }
                     }
                 }
             }
         }
 
-
         farmerDayTick[1] = function() {
             var fx = farmer.state.x;
             var fhw = farmer.width / 2;
-            
+
             if (!isRiddleSolved()) {
                 fx = farmer.state.x = Math.min(fx, kCamBeforeFarm + 300 - fhw);
                 // Check for picking up or dropping animals.
@@ -633,12 +627,30 @@
                     }
                 }
             }
-            
+
+            // Check if farmer can go to sleep.
+            if (farmer.state.floor == 2 && boundCheck(farmer, 670 - fhw, 740 + fhw) == kIn) {
+                if (gameState.sky.timeToNight < 50000) {
+                    setDisplayText("(space) to sleep");
+                    if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                        farmer.state.body = "sleeping";
+                        transitionState(3000, () => {
+                            gameState.day = 2;
+                            boat.state.x = kLakeStartX + boat.sprite.width / 2;
+                            boat.state.side = kLeft;
+                            farmer.state.body = "idle";
+                        });
+                    }
+                } else {
+                    setDisplayText("too early to sleep");
+                }
+            }
+
             farmerBoatTick();
         };
 
         farmerDayTick[2] = function() {
-            var fhw = farmer.width / 2;
+            var fx = farmer.state.x, fhw = farmer.width / 2;
             if (farmer.state.pickingUp == "none") {
                 var gx = gun.sprite.x, ghw = gun.sprite.width / 2;
                 if (farmer.state.floor == 2 && farmer.state.x > gx - ghw && farmer.state.x < gx + ghw) {
@@ -653,16 +665,22 @@
                 // Ensure farmer is well within right boundary so blood stays on ground.
                 farmer.state.x = kLakeEndX + fhw + 20;
             }
+
+            // If on death area, show death body.
+            if (gameState.room == "outside" && farmer.state.pickingUp == "gun" && fx < kLakeEndX + fhw + 35 && farmer.state.body == "idle") {
+                farmer.readyToDie = true;
+                setDisplayText("(space) to end it");
+                if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                    gameState.room = "end";
+                }
+            } else {
+                farmer.readyToDie = false;
+            }
         };
 
         function farmerStateTransitions() {
             var fx = farmer.state.x;
             var fhw = farmer.width / 2;
-
-            if (losingScene != "none") {
-                if (farmer.state.body == "walking") farmer.state.body = "idle";
-                return;
-            }
 
             // Check for state transitions.
             if (farmer.state.body == "walking")
@@ -670,23 +688,19 @@
 
             if (farmer.state.body == "walking" || farmer.state.body == "idle") {
                 // Check if farmer should start walking.
-                if (game.input.keyboard.isDown(Phaser.KeyCode.RIGHT)) {
-                    farmer.state.dir = 1;
+                if (isDown(Phaser.KeyCode.RIGHT)) {
+                    farmer.state.dir = kRight;
                     farmer.state.body = "walking";
-                } else if (game.input.keyboard.isDown(Phaser.KeyCode.LEFT)) {
-                    farmer.state.dir = -1;
+                } else if (isDown(Phaser.KeyCode.LEFT)) {
+                    farmer.state.dir = kLeft;
                     farmer.state.body = "walking";
                 } else {
                     farmer.state.body = "idle";
                 }
             }
 
-            if (isTransitioning && farmer.state.body == "walking") {
-                farmer.state.body = "idle";
-            }
-
             farmerDayTick[gameState.day]();
-            
+
             // Check if farmer is inside/entering the barn or at a boundary.
             if (gameState.room == "outside") {
                 farmer.state.y = 80;
@@ -707,37 +721,31 @@
 
                 // Check if the farmer is on or entering the staircase.
                 if (farmer.state.onStairs) {
-                    if (game.input.keyboard.isDown(Phaser.KeyCode.UP)) {
-                        farmer.state.dir = 1;
+                    // Show a little jump on the end of each step animation.
+                    var stairAnimFinished = farmer.body.animations.currentAnim.isFinished;
+                    var stepScale = stairAnimFinished ? 7 : 0.3;
+                    if (isDown(Phaser.KeyCode.UP)) {
+                        farmer.state.dir = kRight;
                         farmer.state.body = "stairs";
+                        farmer.state.x += stepScale * 0.015 * game.time.elapsed;
+                        farmer.state.y += stepScale * -0.025 * game.time.elapsed;
 
-                        if (farmer.body.animations.currentAnim.isFinished) {
-                            // Show a little jump.
-                            farmer.state.x += .015 * 7 * game.time.elapsed;
-                            farmer.state.y -= .025 * 7 * game.time.elapsed;
+                        if (stairAnimFinished)
                             farmer.stairsAnimPlaying = farmer.stairsAnimPlaying == 1 ? 2 : 1;
-                        } else {
-                            farmer.state.x += .015 * .3 * game.time.elapsed;
-                            farmer.state.y -= .025 * .3 * game.time.elapsed;
-                        }
-                        
+
                         if (farmer.state.y <= 50) {
                             farmer.state.onStairs = false;
                             farmer.state.floor = 2;
                             farmer.state.body = "idle";
                         }
-                    } else if (game.input.keyboard.isDown(Phaser.KeyCode.DOWN)) {
-                        farmer.state.dir = -1;
+                    } else if (isDown(Phaser.KeyCode.DOWN)) {
+                        farmer.state.dir = kLeft;
                         farmer.state.body = "stairs";
+                        farmer.state.x += stepScale * -0.015 * game.time.elapsed;
+                        farmer.state.y += stepScale * 0.025 * game.time.elapsed;
 
-                        if (farmer.body.animations.currentAnim.isFinished) {
-                            farmer.state.x -= .015 * 7 * game.time.elapsed;
-                            farmer.state.y += .025 * 7 * game.time.elapsed;
+                        if (stairAnimFinished)
                             farmer.stairsAnimPlaying = farmer.stairsAnimPlaying == 1 ? 2 : 1;
-                        } else {
-                            farmer.state.x -= .015 * .3 * game.time.elapsed;
-                            farmer.state.y += .025 * .3 * game.time.elapsed;
-                        }
 
                         if (farmer.state.y >= 125) {
                             farmer.state.onStairs = false;
@@ -771,72 +779,36 @@
                     farmer.state.x = kCamBarn + 300 - fhw;
                 }
             }
-            
-            if (farmer.state.floor == 2 && gameState.day == 1 && farmer.state.x > 670 && farmer.state.x < 740) {
-                if (gameState.sky.timeToNight < 50000) {
-                    setDisplayText("(space) to sleep");
-                    if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                        farmer.state.body = "sleeping";
-                        transitionState(3000, () => {
-                            gameState.day = 2;
-                            boat.state.x = kLakeStartX + boat.sprite.width / 2;
-                            boat.state.side = "left";
-                            farmer.state.body = "idle";
-                        });
-                    }
-                } else {
-                    setDisplayText("too early to sleep");
-                }
-            }
         }
 
         function farmerTick() {
             farmerStateTransitions();
+
             var fx = farmer.state.x;
             var fhw = farmer.width / 2;
-            farmer.deathBody.visible = false;
-            farmer.sleepingBody.visible = false;
-            farmer.body.visible = true;
 
-            // If on death area, show death body.
-            if (gameState.room == "outside" && farmer.state.pickingUp == "gun") {
-                gun.sprite.visible = false;
-                if (fx < kLakeEndX + fhw + 35) {
-                    if (farmer.state.body == "idle") {
-                        farmer.body.visible = false;
-                        farmer.deathBody.visible = true;
-                    }
-                    setDisplayText("(space) to end it");
-                    if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                        gameState.room = "end";
-                    }
-                }
-            }
+            farmer.deathBody.visible = farmer.sleepingBody.visible = farmer.body.visible = false;
+            if (farmer.readyToDie || gameState.room == "end") farmer.deathBody.visible = true;
+            else if (farmer.state.body == "sleeping") farmer.sleepingBody.visible = true;
+            else farmer.body.visible = true;
 
-            // If sleeping, show sleeping body
-            if (farmer.state.body == "sleeping") {
-                farmer.sleepingBody.visible = true;
-                farmer.body.visible = false;
-            }
-            
             // Apply farmer state to farmer sprite.
             farmer.body.scale.set(farmer.state.dir, 1);
             farmer.deathBody.scale.set(farmer.state.dir, 1);
 
             if (farmer.state.body == "stairs") {
-                // Stairs is a special case since we don't loop the animations, but rather switch them continuously.
+                // Stairs is a special case since we don't loop the animations, but alternate them.
                 var currentAnim = farmer.body.animations.currentAnim.name;
                 var stairAnim = "stairs-" + farmer.stairsAnimPlaying;
-                if (stairAnim != currentAnim) {
-                    farmer.body.animations.play(stairAnim);
-                }
+                console.log(stairAnim);
+                if (stairAnim != currentAnim) farmer.body.animations.play(stairAnim);
             } else {
                 var farmerAnim = farmer.state.body;
                 // If the farmer is picking up an animal or gun, tack on to the current animation.
                 if (animals.has(farmer.state.pickingUp)) {
                     farmerAnim += "-" + farmer.state.pickingUp;
                 }
-                farmer.body.animations.play(farmerAnim) // idempotent.
+                farmer.body.animations.play(farmerAnim)
             }
 
             farmer.sprite.position.x = farmer.state.x;
@@ -853,17 +825,17 @@
             if (boat.state.body == "moving") {
                 var deltaX = boat.state.dir * game.time.elapsed * .05;
                 actors.forEach((actor) => {
-                    actor.state.x += actor.state.boat == "in" ? deltaX : 0;
+                    actor.state.x += actor.state.boat == kIn ? deltaX : 0;
                 });
                 bx = boat.state.x = bx + deltaX;
-                if (boat.state.dir == 1) {
+                if (boat.state.dir == kRight) {
                     if (bx > kLakeEndX - bhw) {
-                        boat.state.side = "right";
+                        boat.state.side = kRight;
                         boat.state.body = "idle";
                     }
                 } else {
                     if (bx < kLakeStartX + bhw) {
-                        boat.state.side = "left";
+                        boat.state.side = kLeft;
                         boat.state.body = "idle";
                     }
                 }
@@ -900,11 +872,11 @@
 
             // Check if the losing scene should occur.
             if (boat.state.body == "moving") {
-                if (lakeSide(wolf) == lakeSide(goat) && wolf.state.boat == "not_in"
-                    && goat.state.boat == "not_in") {
+                if (lakeSide(wolf) == lakeSide(goat) && wolf.state.boat == kNotIn
+                    && goat.state.boat == kNotIn) {
                     losingScene = "wolf_eats_goat";
-                } else if (lakeSide(goat) == lakeSide(cabbage) && goat.state.boat == "not_in"
-                    && cabbage.state.boat == "not_in") {
+                } else if (lakeSide(goat) == lakeSide(cabbage) && goat.state.boat == kNotIn
+                    && cabbage.state.boat == kNotIn) {
                     losingScene = "goat_eats_cabbage";
                 }
             }
@@ -967,7 +939,7 @@
             wolf.sprite.scale.set(wolf.state.dir, 1);
             wolf.sprite.animations.play(wolf.state.body);
         }
-        
+
         function skyTick() {
             if (gameState.day == 1) {
                 if (gameState.sky.active) {
@@ -1123,7 +1095,7 @@
                 }
             }
         }
-        
+
         screenTick["menu"] = function() {
             setDisplayText("(space) to play");
             tickDisplayText();
