@@ -58,7 +58,7 @@
             update: update
         }, false, false, null);
 
-        var bg, bgNight, bgNightOverlay;
+        var bg, bgNight, bgNightOverlay; // bg is a group which fades during night transition. TODO: make this cleaner and support multiple background transitions for nighttime.
         var kLakeStartX = 140, kLakeEndX = 370;
         var kBarnStartX = 618, kBarnStepStartX = 597;
         var kCamBeforeFarm = 190, kCamAfterFarm = 650 - 300, kCamBarn = 650; // TODO: remove kCamBarn constant in favor of position
@@ -202,6 +202,11 @@
         var noise = null, noiseState = "unstarted"; // fading, looping
 
         var timers = {}; // -1 means unlocked, 0 means finished, > 0 means counting down.
+		
+		var water = {
+			group: null, // group containing water sprites, so sprites are relatively positioned.
+			data: [],
+		}; 
 
         // Caller's responsibility to reset timer.
         function timerWait(key, duration) {
@@ -426,7 +431,8 @@
         function preload() {
             game.load.image("title", "img/title.png");
             game.load.image("bg-night", "img/bg-night.png?v3");
-            game.load.image("bg", "img/bg.png?v4");
+            game.load.image("bg-1", "img/bg-base.png?v5");
+			game.load.image("bg-2", "img/fg.png?v3");
             game.load.image("bg-night-overlay", "img/bg-night-overlay.png?v2");
             game.load.spritesheet("goat", "img/goat.png?v2", 25, 20);
             game.load.spritesheet("wolf", "img/wolf.png?v3", 31, 20);
@@ -448,10 +454,26 @@
 
             game.camera.scale.set(3, 3);
             game.camera.bounds = null;
-
+			
+			// Set up background and water.
             bgNight = game.add.sprite(0, 0, "bg-night");
-            bg = game.add.sprite(0, 0, "bg");
-
+            bg = game.add.group();
+			bg.add(game.add.sprite(0, 0, "bg-1"));
+			
+			water.group = game.add.group()
+			water.group.x = 120;
+			water.group.y = 110;
+			
+			for (var i = 0; i < 91; i++) {
+                var ws = game.add.sprite(i * 3, 0, "water");
+                ws.anchor.set(.5, 0);
+				ws.scale.set(3, 100);
+				water.group.add(ws);
+                water.data.push({ vel: 0, sprite: ws, velocityDriven: i % 15 == 0 });
+            }
+			
+			game.add.sprite(0, 0, "bg-2");
+			
             // Add menu sprites.
             game.add.sprite(kCamMenu + 10, 10, "title");
             game.add.bitmapText(kCamMenu + 65, 50, "font", "wolf eats goat", 16);
@@ -532,13 +554,6 @@
 
             bgNightOverlay = game.add.sprite(0, 0, "bg-night-overlay");
             bgNightOverlay.alpha = 0;
-
-            for (var i = 0; i < 200; i++) {
-                var ws = game.add.sprite(150 + i, 100, "water");
-                ws.anchor.set(.5, 0);
-                ws.vel = 0;
-                water.push(ws);
-            }
 
             loadState();
         }
@@ -1040,8 +1055,8 @@
 
         function cameraTick() {
             // TEMP
-            game.camera.x = 300;
-            return;
+            //game.camera.x = 300;
+            //return;
             // If targetActor is null, then targetPosition is the assumed camera position.
             var targetActor = null, targetPosition = 0;
 
@@ -1075,28 +1090,35 @@
                 game.camera.x = targetPosition;
             }
         }
-
-        var waterMark = 1;
+	
+		var waterTime = 500;
         function waterTick() {
-            for (var i = 0; i < water.length; i++) {
-                var prevY = water[i].y, nextY = water[i].y, thisY = water[i].y;
-                if (i > 0) prevY = water[i-1].y;
-                if (i < water.length - 1) nextY = water[i+1].y;
-
-                if (i > 0 && i < water.length - 1) {
-                    // Move towards average point.
-                    var d1 = water[i-1].y - water[i].y;
-                    var d2 = water[i+1].y - water[i].y;
-                    var d1w = Math.abs(d1) - Math.abs(d2) ? .55 : .45;
-                    var d2w = 1 - d1w;
-                    var weightedAvg = d1w * d1 + d2w * d2;
-                    water[i].y += weightedAvg;
-                } else {
-                    water[i].vel += .1 * Math.sign(100 - water[i].y);
-                    water[i].y += .1 * water[i].vel;
-                    water[i].vel *= .99;
-                }
-            }
+			// At random timer interval, set velocities for velocity driven points.
+			if (timerWait("water", waterTime) == 0) {
+				water.data.forEach((w) => {
+					if (!w.velocityDriven) return;
+					// Only move if the water isn't moving much to prevent jitter.
+					if (Math.abs(w.sprite.y) > 3 || Math.abs(w.vel) > .5) return;
+					w.vel = Math.random() * 8 - 4;
+				});
+				waterTime = Math.floor(Math.random() * 1000 + 500);
+				timerReset("water");
+			}
+			for (var i = 0; i < water.data.length; i++) {
+				if (!water.data[i].velocityDriven) {
+					// Move towards average point.
+					var d1 = water.data[i-1].sprite.y - water.data[i].sprite.y;
+					var d2 = water.data[i+1].sprite.y - water.data[i].sprite.y;
+					var avg = .5 * d1 + .5 * d2;
+					water.data[i].sprite.y += avg;
+				} else {
+					water.data[i].vel += .1 * Math.sign(-1 * water.data[i].sprite.y);
+					water.data[i].sprite.y += .1 * water.data[i].vel;
+					water.data[i].vel *= .991;
+				}
+				water.data[i].sprite.y = Math.max(-20, water.data[i].sprite.y);
+				water.data[i].sprite.y = Math.min(20, water.data[i].sprite.y);
+			}
         }
 
         roomTick["barn"] = function() {
@@ -1139,6 +1161,7 @@
                     gameState.screen = "game";
                 });
             }
+			waterTick();
         }
 
         screenTick["game"] = function() {
@@ -1149,7 +1172,7 @@
             roomTick[gameState.room]();
             game.sound.mute = gameState.muted;
             tickDisplayText();
-            waterTick();
+			waterTick();
             if (resetStateRestFlag) stateJustReset = false;
         }
 

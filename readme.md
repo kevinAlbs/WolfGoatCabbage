@@ -6,19 +6,19 @@ Code cleaning
 - Change strings to const's
 - Add consts for all magic numbers
 - Consider using Phaser camera bounds for camera follow logic
-- Study whether or not the idea that state is represented in implementation through idempotent function calls is a good idea.
 
 Artwork
 -------
 - Add homelike items to barn
 - Add z-indexes layers
-- Water movement please!!!
 - Remove shadows during night transition
+- Fix night transition
 
 Misc
 ----
-- Add sound effect for gunshot
+- Add sound effect for gunshot, (goat?), footsteps?
 - Add idle animations for wolf and goat, move around sometimes
+- Ending music should be programmatic (noise should fade in as function of step)
 
 Extra
 -----
