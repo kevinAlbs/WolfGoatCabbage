@@ -202,11 +202,11 @@
         var noise = null, noiseState = "unstarted"; // fading, looping
 
         var timers = {}; // -1 means unlocked, 0 means finished, > 0 means counting down.
-		
-		var water = {
-			group: null, // group containing water sprites, so sprites are relatively positioned.
-			data: [],
-		}; 
+        
+        var water = {
+            group: null, // group containing water sprites, so sprites are relatively positioned.
+            data: [],
+        }; 
 
         // Caller's responsibility to reset timer.
         function timerWait(key, duration) {
@@ -226,9 +226,6 @@
             muteButton.setAttribute("data-muted", gameState.muted ? "true" : "false");
         }
 
-        // I break pattern for transition/wait for callbacks to simplify code. I would like to change this because
-        // if event occurs in the midst of another function working with the same state, assumptions are lost, e.g.
-        // if (state == "X") do Y; but state can change in between the if and the "do Y" with a callback.
         function transitionState(duration, callback) {
             if (isTransitioning) return;
             isTransitioning = true;
@@ -307,9 +304,18 @@
                 game.add.bitmapText(10, 30, "font", "(space) to restart", 16));
         }
 
-        // This must be called each frame to display continuously.
-        function setDisplayText(msg) {
-            if (losingScene == "none") textDisplay.newText = msg;
+        // Returns boolean indicating success.
+        function displayText(msg) {
+            // If multiple attempts, only take the first.
+            if (textDisplay.newText) return false;
+            textDisplay.newText = msg;
+            return true;
+        }
+
+        function prompt(msg) {
+            // If we're in the losing scene or we've already prompted something this frame, skip.
+            if (losingScene != "none" || !displayText(msg)) return;
+            return isPressed(Phaser.KeyCode.SPACEBAR);
         }
 
         // Called at the end of the frame to render whichever text is displayed last.
@@ -431,8 +437,8 @@
         function preload() {
             game.load.image("title", "img/title.png");
             game.load.image("bg-night", "img/bg-night.png?v3");
-            game.load.image("bg-1", "img/bg-base.png?v5");
-			game.load.image("bg-2", "img/fg.png?v3");
+            game.load.image("bg-1", "img/bg-1.png?v2");
+            game.load.image("bg-2", "img/bg-2.png");
             game.load.image("bg-night-overlay", "img/bg-night-overlay.png?v2");
             game.load.spritesheet("goat", "img/goat.png?v2", 25, 20);
             game.load.spritesheet("wolf", "img/wolf.png?v3", 31, 20);
@@ -454,26 +460,26 @@
 
             game.camera.scale.set(3, 3);
             game.camera.bounds = null;
-			
-			// Set up background and water.
+            
+            // Set up background and water.
             bgNight = game.add.sprite(0, 0, "bg-night");
             bg = game.add.group();
-			bg.add(game.add.sprite(0, 0, "bg-1"));
-			
-			water.group = game.add.group()
-			water.group.x = 120;
-			water.group.y = 110;
-			
-			for (var i = 0; i < 91; i++) {
+            bg.add(game.add.sprite(0, 0, "bg-1"));
+            
+            water.group = game.add.group()
+            water.group.x = 120;
+            water.group.y = 110;
+            
+            for (var i = 0; i < 91; i++) {
                 var ws = game.add.sprite(i * 3, 0, "water");
                 ws.anchor.set(.5, 0);
-				ws.scale.set(3, 100);
-				water.group.add(ws);
+                ws.scale.set(3, 100);
+                water.group.add(ws);
                 water.data.push({ vel: 0, sprite: ws, velocityDriven: i % 15 == 0 });
             }
-			
-			game.add.sprite(0, 0, "bg-2");
-			
+            
+            game.add.sprite(0, 0, "bg-2");
+            
             // Add menu sprites.
             game.add.sprite(kCamMenu + 10, 10, "title");
             game.add.bitmapText(kCamMenu + 65, 50, "font", "wolf eats goat", 16);
@@ -577,7 +583,7 @@
                     if (boat.state.side != kLeft) {
                         fx = farmer.state.x = kLakeStartX - fhw;
                     } else if (boatFilled) {
-                        setDisplayText("not enough room");
+                        displayText("not enough room");
                         fx = farmer.state.x = kLakeStartX - fhw;
                     } else {
                         fx = farmer.state.x = boat.state.x - 20;
@@ -587,7 +593,7 @@
                     if (boat.state.side != kRight) {
                         fx = farmer.state.x = kLakeEndX + fhw;
                     } else if (boatFilled) {
-                        setDisplayText("not enough room");
+                        displayText("not enough room");
                     } else {
                         fx = farmer.state.x = boat.state.x + 20;
                         farmer.state.boat = kIn;
@@ -599,7 +605,6 @@
                 // Check if farmer can get out of boat.
                 var bx = boat.state.x, bhw = boat.sprite.width / 2;
                 var farmerBoundCheck = boundCheck(farmer, bx - bhw + 4, bx + bhw - 4);
-                console.log(farmerBoundCheck);
                 var boundFarmer = () => { boundX(farmer, bx - bhw + 3, bx + bhw - 3); };
                 // Cannot leave if boat is moving or the farmer on opposite side.
                 if (boat.state.body == "moving") {
@@ -614,11 +619,11 @@
                     } else if (farmerBoundCheck == boat.state.side * -1) {
                         // Prompt to ride.
                         boundFarmer();
-                        setDisplayText("(space) to ride boat");
-                        if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                        if (prompt("(space) to ride boat")) {
                             boat.state.body = "moving";
                             boat.state.side = "center";
                             boat.state.dir = farmerBoundCheck;
+                            gameState.hasRiddenBoat = true;
                         }
                     }
                 }
@@ -626,6 +631,8 @@
         }
 
         farmerDayTick[1] = function() {
+            farmerBoatTick();
+
             var fx = farmer.state.x;
             var fhw = farmer.width / 2;
 
@@ -635,16 +642,14 @@
                 if (farmer.state.pickingUp == "none") {
                     animals.forEach((actor, actorName) => {
                         if (Math.abs(farmer.state.x - actor.state.x) < 4) {
-                            setDisplayText("(space) to pick up " + actorName)
-                            if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                            if (prompt("(space) to pick up " + actorName)) {
                                 farmer.state.pickingUp = actorName;
                                 actor.state.body = "held";
                             }
                         }
                     });
                 } else {
-                    setDisplayText("(space) to drop " + farmer.state.pickingUp);
-                    if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                    if (prompt("(space) to drop " + farmer.state.pickingUp)) {
                         var animal = animals.get(farmer.state.pickingUp);
                         animal.state.body = "idle";
                         farmer.state.pickingUp = "none";
@@ -655,8 +660,7 @@
             // Check if farmer can go to sleep.
             if (farmer.state.floor == 2 && boundCheck(farmer, 670 - fhw, 740 + fhw) == kIn) {
                 if (gameState.sky.timeToNight < 50000) {
-                    setDisplayText("(space) to sleep");
-                    if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                    if (prompt("(space) to sleep")) {
                         farmer.state.body = "sleeping";
                         transitionState(3000, () => {
                             gameState.day = 2;
@@ -666,11 +670,9 @@
                         });
                     }
                 } else {
-                    setDisplayText("too early to sleep");
+                    displayText("too early to sleep");
                 }
             }
-
-            farmerBoatTick();
         };
 
         farmerDayTick[2] = function() {
@@ -678,8 +680,7 @@
             if (farmer.state.pickingUp == "none") {
                 var gx = gun.sprite.x, ghw = gun.sprite.width / 2;
                 if (farmer.state.floor == 2 && farmer.state.x > gx - ghw && farmer.state.x < gx + ghw) {
-                    setDisplayText("(space) to pick up gun");
-                    if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                    if (prompt("(space) to pick up gun")) {
                         farmer.state.pickingUp = "gun";
                         gun.sprite.visible = false;
                     }
@@ -693,8 +694,7 @@
             // If on death area, show death body.
             if (gameState.room == "outside" && farmer.state.pickingUp == "gun" && fx < kLakeEndX + fhw + 35 && farmer.state.body == "idle") {
                 farmer.readyToDie = true;
-                setDisplayText("(space) to end it");
-                if (isPressed(Phaser.KeyCode.SPACEBAR)) {
+                if (prompt("(space) to end it")) {
                     gameState.room = "end";
                 }
             } else {
@@ -993,7 +993,7 @@
             farmer.deathBody.visible = true;
 
             if (!finished()) {
-                setDisplayText("(space) to end it");
+                displayText("(space) to end it");
                 farmer.deathBody.frame = 1;
                 gameState.endSequence.highlightTimer -= game.time.elapsed;
                 gameState.endSequence.decrementTimer -= game.time.elapsed;
@@ -1054,9 +1054,6 @@
         }
 
         function cameraTick() {
-            // TEMP
-            //game.camera.x = 300;
-            //return;
             // If targetActor is null, then targetPosition is the assumed camera position.
             var targetActor = null, targetPosition = 0;
 
@@ -1090,35 +1087,35 @@
                 game.camera.x = targetPosition;
             }
         }
-	
-		var waterTime = 500;
+    
+        var waterTime = 500;
         function waterTick() {
-			// At random timer interval, set velocities for velocity driven points.
-			if (timerWait("water", waterTime) == 0) {
-				water.data.forEach((w) => {
-					if (!w.velocityDriven) return;
-					// Only move if the water isn't moving much to prevent jitter.
-					if (Math.abs(w.sprite.y) > 3 || Math.abs(w.vel) > .5) return;
-					w.vel = Math.random() * 8 - 4;
-				});
-				waterTime = Math.floor(Math.random() * 1000 + 500);
-				timerReset("water");
-			}
-			for (var i = 0; i < water.data.length; i++) {
-				if (!water.data[i].velocityDriven) {
-					// Move towards average point.
-					var d1 = water.data[i-1].sprite.y - water.data[i].sprite.y;
-					var d2 = water.data[i+1].sprite.y - water.data[i].sprite.y;
-					var avg = .5 * d1 + .5 * d2;
-					water.data[i].sprite.y += avg;
-				} else {
-					water.data[i].vel += .1 * Math.sign(-1 * water.data[i].sprite.y);
-					water.data[i].sprite.y += .1 * water.data[i].vel;
-					water.data[i].vel *= .991;
-				}
-				water.data[i].sprite.y = Math.max(-20, water.data[i].sprite.y);
-				water.data[i].sprite.y = Math.min(20, water.data[i].sprite.y);
-			}
+            // At random timer interval, set velocities for velocity driven points.
+            if (timerWait("water", waterTime) == 0) {
+                water.data.forEach((w) => {
+                    if (!w.velocityDriven) return;
+                    // Only move if the water isn't moving much to prevent jitter.
+                    if (Math.abs(w.sprite.y) > 3 || Math.abs(w.vel) > .5) return;
+                    w.vel = Math.random() * 8 - 4;
+                });
+                waterTime = Math.floor(Math.random() * 1000 + 500);
+                timerReset("water");
+            }
+            for (var i = 0; i < water.data.length; i++) {
+                if (!water.data[i].velocityDriven) {
+                    // Move towards average point.
+                    var d1 = water.data[i-1].sprite.y - water.data[i].sprite.y;
+                    var d2 = water.data[i+1].sprite.y - water.data[i].sprite.y;
+                    var avg = .5 * d1 + .5 * d2;
+                    water.data[i].sprite.y += avg;
+                } else {
+                    water.data[i].vel += .1 * Math.sign(-1 * water.data[i].sprite.y);
+                    water.data[i].sprite.y += .1 * water.data[i].vel;
+                    water.data[i].vel *= .991;
+                }
+                water.data[i].sprite.y = Math.max(-20, water.data[i].sprite.y);
+                water.data[i].sprite.y = Math.min(20, water.data[i].sprite.y);
+            }
         }
 
         roomTick["barn"] = function() {
@@ -1154,14 +1151,14 @@
         }
 
         screenTick["menu"] = function() {
-            setDisplayText("(space) to play");
+            displayText("(space) to play");
             tickDisplayText();
             if (isPressed(Phaser.KeyCode.SPACEBAR)) {
                 transitionState(1000, () => {
                     gameState.screen = "game";
                 });
             }
-			waterTick();
+            waterTick();
         }
 
         screenTick["game"] = function() {
@@ -1172,7 +1169,7 @@
             roomTick[gameState.room]();
             game.sound.mute = gameState.muted;
             tickDisplayText();
-			waterTick();
+            waterTick();
             if (resetStateRestFlag) stateJustReset = false;
         }
 
