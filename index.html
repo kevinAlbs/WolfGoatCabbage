@@ -7,6 +7,7 @@
     <title>Wolf, Goat, Cabbage</title>
     <meta name="description" content="">
     <meta name="author" content="Kevin Albertson">
+    <link rel="icon" type="image/png" href="img/favicon.png">
 
     <style type="text/css">
         #container {
@@ -389,12 +390,6 @@
             gameState.hasRiddenBoat = true;
         }
 
-        function tempSet2() {
-            wolf.state.x = kLakeEndX + 20;
-            cabbage.state.x = kLakeEndX + 40;
-            gameState.hasRiddenBoat = true;   
-        }
-
         function saveState() {
             window.localStorage.setItem("state", JSON.stringify(getCompleteState()));
         }
@@ -439,14 +434,7 @@
 
         function preload() {
             game.load.image("title", "img/title.png");
-            game.load.image("fg-1", "img/fg-1.png");
-            game.load.image("bg-1", "img/bg-1.png");
-            game.load.image("bg-2", "img/bg-2.png");
-            game.load.image("bg-2-overlay", "img/bg-2-overlay.png");
-            game.load.image("bg-3", "img/bg-3.png");
-            game.load.image("bg-3-overlay", "img/bg-3-overlay.png");
-            game.load.image("bg-night", "img/bg-night.png");
-            game.load.image("bg-night-overlay", "img/bg-night-overlay.png");
+            game.load.spritesheet("bg", "img/bg.png?v2", 1250, 150);
             game.load.spritesheet("goat", "img/goat.png?v2", 25, 20);
             game.load.spritesheet("wolf", "img/wolf.png?v3", 31, 20);
             game.load.spritesheet("cabbage", "img/cabbage.png", 12, 8);
@@ -470,10 +458,10 @@
             game.camera.bounds = null;
 
             skies = [
-                { bg: game.add.sprite(0, 0, "bg-night"), ttl: 0 },
-                { bg: game.add.sprite(0, 0, "bg-3"), ttl: 15 * 1000 },
-                { bg: game.add.sprite(0, 0, "bg-2"), ttl: 15 * 1000 },
-                { bg: game.add.sprite(0, 0, "bg-1"), ttl: 15 * 1000 }
+                { bg: game.add.sprite(0, 0, "bg", 5), ttl: 0 },
+                { bg: game.add.sprite(0, 0, "bg", 3), ttl: 15 * 1000 },
+                { bg: game.add.sprite(0, 0, "bg", 1), ttl: 15 * 1000 },
+                { bg: game.add.sprite(0, 0, "bg", 0), ttl: 15 * 1000 }
             ];
             
             water.group = game.add.group()
@@ -488,7 +476,7 @@
                 water.data.push({ vel: 0, sprite: ws, velocityDriven: i % 15 == 0 });
             }
             
-            game.add.sprite(0, 0, "fg-1");
+            game.add.sprite(0, 0, "bg", 7);
             
             // Add menu sprites.
             game.add.sprite(kCamMenu + 10, 10, "title");
@@ -561,10 +549,9 @@
             game.add.sprite(605, 35, "barn-front");
             game.add.sprite(650, 0, "barn-fg");
 
-            skies[0].overlay = game.add.sprite(0, 0, "bg-night-overlay");
-            skies[1].overlay = game.add.sprite(0, 0, "bg-3-overlay");
-            skies[2].overlay = game.add.sprite(0, 0, "bg-2-overlay");
-            
+            skies[0].overlay = game.add.sprite(0, 0, "bg", 6);
+            skies[1].overlay = game.add.sprite(0, 0, "bg", 4);
+            skies[2].overlay = game.add.sprite(0, 0, "bg", 2);
 
             textDisplay.graphics = game.add.graphics(0, 0);
             textDisplay.graphics.fixedToCamera = true;
