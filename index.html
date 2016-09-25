@@ -191,16 +191,18 @@
                 rate: 1000, // rate at which clock step decreases. Decreases as step increases.
                 highlightTimer: 0, // highlights the (space)
             },
-            muted: false,
             hasRiddenBoat: false
         };
+
         var stateJustReset = false;
+        var muted = false;
 
         // Map state names to implementing functions.
         var screenTick = {}, roomTick = {}, farmerDayTick = {};
         var muteButton = document.getElementById("mute");
         var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null;
         var noise = null, noiseState = "unstarted"; // fading, looping
+        var gunshot = null;
 
         var timers = {}; // -1 means unlocked, 0 means finished, > 0 means counting down.
         
@@ -224,7 +226,7 @@
         }
 
         function updateMuteButton() {
-            muteButton.setAttribute("data-muted", gameState.muted ? "true" : "false");
+            muteButton.setAttribute("data-muted", muted ? "true" : "false");
         }
 
         function transitionState(duration, callback) {
@@ -456,7 +458,7 @@
             game.load.image("barn-front", "img/barn-front.png?v2");
             game.load.image("gun", "img/gun.png");
             game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
-            game.load.audio("music", "snd/all.mp3");
+            game.load.audio("sounds", "snd/all.mp3?v8");
             game.load.image("water", "img/water.png?v2");
             game.load.image("barn-fg", "img/barn-fg.png");
         }
@@ -567,13 +569,15 @@
             textDisplay.graphics = game.add.graphics(0, 0);
             textDisplay.graphics.fixedToCamera = true;
 
-            backgroundMusic = game.add.audio("music");
-            backgroundMusic.addMarker("bg", 106, 66, 1, true);
-            backgroundMusic.addMarker("reverse", 0, 43.4, 1, true);
+            backgroundMusic = game.add.audio("sounds");
+            backgroundMusic.addMarker("bg", 0, 66.56, 1, true);
+            backgroundMusic.addMarker("reverse", 66.56, 43.4, 1, true);
 
-            noise = game.add.audio("music");
-            noise.addMarker("noiseStart", 43.4, 56.6, 1, false);
-            noise.addMarker("noise", 100, 5, 1, true);
+            gunshot = game.add.audio("sounds");
+            gunshot.addMarker("gunshot", 116.06, 1.2, false);
+
+            noise = game.add.audio("sounds");
+            noise.addMarker("noise", 110.26, 5, 1, true);
 
             loadState();
         }
@@ -700,9 +704,9 @@
                     }
                 }
             }
-            if (farmer.state.x < kLakeEndX + fhw + 20) {
+            if (farmer.state.x < kLakeEndX + fhw + 28) {
                 // Ensure farmer is well within right boundary so blood stays on ground.
-                farmer.state.x = kLakeEndX + fhw + 20;
+                farmer.state.x = kLakeEndX + fhw + 28;
             }
 
             // If on death area, show death body.
@@ -838,7 +842,6 @@
                 // Stairs is a special case since we don't loop the animations, but alternate them.
                 var currentAnim = farmer.body.animations.currentAnim.name;
                 var stairAnim = "stairs-" + farmer.stairsAnimPlaying;
-                console.log(stairAnim);
                 if (stairAnim != currentAnim) farmer.body.animations.play(stairAnim);
             } else {
                 var farmerAnim = farmer.state.body;
@@ -1072,18 +1075,14 @@
 
                 game.camera.shake(.0001 * gameState.endSequence.step, 100, true, Phaser.Camera.SHAKE_HORIZONTAL);
             } else {
-                // Wait one sec. TODO.
-
                 // Play shot animation
                 if (farmer.deathBody.frame <= 12) {
                     farmer.deathBody.animations.play("death");
+                    gunshot.play("gunshot", 0, 1, false);
                 }
-
-                // Wait one sec.
                 // End of game.
                 showTitle("", false);
                 game.camera.shake(0, 0, true);
-                //gameState.endSequence.active = false;
             }
 
             console.log(gameState.endSequence.step);
@@ -1176,14 +1175,14 @@
 
             // Play the noise if not already.
             if (noiseState == "unstarted") {
-                noise.play("noiseStart", 0, 1, false);
-                noiseState = "fading";
-            } else if (noiseState == "fading") {
-                if (!noise.isPlaying) {
-                    // Play the rest.
-                    noise.play("noise", 0, 1, true);
-                    noiseState = "looping";
-                }
+                noise.play("noise", 0, 0, true);
+            } else {
+                noise.volume = Math.min(gameState.endSequence.step / 70, 1);
+            }
+
+            if (gameState.endSequence.step >= 70) {
+                noise.volume = 0;
+                audioPlaying.volume = 0;
             }
         }
 
@@ -1200,7 +1199,7 @@
 
         screenTick["game"] = function() {
             roomTick[gameState.room]();
-            game.sound.mute = gameState.muted;
+            game.sound.mute = muted;
             tickDisplayText();
             waterTick();
         }
@@ -1212,9 +1211,11 @@
             cameraTick();
         }
 
-        muteButton.addEventListener("click", () => {
-            gameState.muted = !gameState.muted;
+        muteButton.addEventListener("click", (e) => {
+            muted = !muted;
             updateMuteButton();
+            e.preventDefault();
+            return false;
         }, false);
     </script>
 </body>

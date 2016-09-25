@@ -11,10 +11,9 @@ Artwork
 
 Misc
 ----
-- Add sound effect for gunshot, goat?, footsteps?
-- Ending music should be programmatic (noise should fade in as function of step)
 - Full bug checking
-- Remove any ES6 specific code, test on all browsers
+- Put backgrounds into spritesheet, save as much space as possible.
+- Remove any ES6 specific code, test on all browsers. Minify.
 - Add Google Analytics
 - Retain mute state on reset
 
@@ -33,3 +32,9 @@ Extra
 - Add consts for all magic numbers
 - Redo stair animation
 - Rest of music should be programmatic (e.g. if farmer walks back into barn, music should stop)
+- Add goat noise
+
+Credit
+------
+Phaser: http://phaser.io
+Shotgun: http://www.freesound.org/people/lensflare8642/sounds/145209/
