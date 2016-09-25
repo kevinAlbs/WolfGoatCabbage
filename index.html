@@ -59,6 +59,7 @@
         }, false, false, null);
 
         var bg, bgNight, bgNightOverlay; // bg is a group which fades during night transition. TODO: make this cleaner and support multiple background transitions for nighttime.
+        var skies = [];
         var kLakeStartX = 140, kLakeEndX = 370;
         var kBarnStartX = 618, kBarnStepStartX = 597;
         var kCamBeforeFarm = 190, kCamAfterFarm = 650 - 300, kCamBarn = 650; // TODO: remove kCamBarn constant in favor of position
@@ -181,7 +182,7 @@
             room: "outside", // barn
             sky: {
                 changing: false,
-                timeToNight: 60 * 1000
+                nightWatch: 0
             },
             endSequence : {
                 active: false,
@@ -439,13 +440,15 @@
             game.load.image("bg-night", "img/bg-night.png?v3");
             game.load.image("bg-1", "img/bg-1.png?v2");
             game.load.image("bg-2", "img/bg-2.png");
+            game.load.image("bg-1-1", "img/bg-1-1.png");
+            game.load.image("bg-1-1-overlay", "img/bg-1-1-overlay.png");
             game.load.image("bg-night-overlay", "img/bg-night-overlay.png?v2");
             game.load.spritesheet("goat", "img/goat.png?v2", 25, 20);
             game.load.spritesheet("wolf", "img/wolf.png?v3", 31, 20);
             game.load.spritesheet("cabbage", "img/cabbage.png", 12, 8);
             game.load.image("boat", "img/boat.png?v3");
             game.load.image("boat-back", "img/boat-back.png");
-            game.load.spritesheet("farmer", "img/farmer.png?v6", 30, 44);
+            game.load.spritesheet("farmer", "img/farmer.png?v7", 30, 44);
             game.load.image("farmer-sleeping", "img/farmer-sleeping.png");
             game.load.bitmapFont("font", "img/font.png", "img/font.fnt");
             game.load.image("barn-front", "img/barn-front.png?v2");
@@ -453,6 +456,7 @@
             game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
             game.load.audio("music", "snd/all.mp3");
             game.load.image("water", "img/water.png?v2");
+            game.load.image("barn-fg", "img/barn-fg.png");
         }
 
         function create() {
@@ -460,11 +464,13 @@
 
             game.camera.scale.set(3, 3);
             game.camera.bounds = null;
-            
-            // Set up background and water.
-            bgNight = game.add.sprite(0, 0, "bg-night");
-            bg = game.add.group();
-            bg.add(game.add.sprite(0, 0, "bg-1"));
+
+            skies = [
+                { bg: game.add.sprite(0, 0, "bg-night"), ttl: 0 },
+                { bg: game.add.sprite(0, 0, "bg-1-1"), ttl: 4 * 1000 },
+                { bg: game.add.sprite(0, 0, "bg-1"), ttl: 4 * 1000 }
+            ];
+
             
             water.group = game.add.group()
             water.group.x = 120;
@@ -508,6 +514,8 @@
             farmer.body.animations.add("walking-wolf", [22,23,24,25,26,27], 6);
             farmer.body.animations.add("stairs-1", [28,29,30], 6);
             farmer.body.animations.add("stairs-2", [31,32,33], 6);
+            farmer.body.animations.add("idle-gun", [34]);
+            farmer.body.animations.add("walking-gun", [35,36,37,38,39,40], 6);
             farmer.sprite.add(farmer.body);
 
             farmer.deathBody = game.add.sprite(0, -2, "farmer-death");
@@ -545,7 +553,12 @@
                 keysDownHandled[keyEvent.keyCode] = false;
             };
 
+            // Add foreground.
             game.add.sprite(605, 35, "barn-front");
+            game.add.sprite(650, 0, "barn-fg");
+
+            skies[0].overlay = game.add.sprite(0, 0, "bg-night-overlay");
+            skies[1].overlay = game.add.sprite(0, 0, "bg-1-1-overlay");
 
             textDisplay.graphics = game.add.graphics(0, 0);
             textDisplay.graphics.fixedToCamera = true;
@@ -557,9 +570,6 @@
             noise = game.add.audio("music");
             noise.addMarker("noiseStart", 43.4, 56.6, 1, false);
             noise.addMarker("noise", 100, 5, 1, true);
-
-            bgNightOverlay = game.add.sprite(0, 0, "bg-night-overlay");
-            bgNightOverlay.alpha = 0;
 
             loadState();
         }
@@ -659,7 +669,7 @@
 
             // Check if farmer can go to sleep.
             if (farmer.state.floor == 2 && boundCheck(farmer, 670 - fhw, 740 + fhw) == kIn) {
-                if (gameState.sky.timeToNight < 50000) {
+                if (gameState.sky.nightWatch < 50000) {
                     if (prompt("(space) to sleep")) {
                         farmer.state.body = "sleeping";
                         transitionState(3000, () => {
@@ -829,7 +839,7 @@
             } else {
                 var farmerAnim = farmer.state.body;
                 // If the farmer is picking up an animal or gun, tack on to the current animation.
-                if (animals.has(farmer.state.pickingUp)) {
+                if (farmer.state.pickingUp != "none") {
                     farmerAnim += "-" + farmer.state.pickingUp;
                 }
                 farmer.body.animations.play(farmerAnim)
@@ -966,15 +976,44 @@
 
         function skyTick() {
             if (gameState.day == 1) {
-                if (gameState.sky.active) {
-                    gameState.sky.timeToNight -= game.time.elapsed;
-                    // First ten seconds don't experience change
-                    var opacity = Math.min(1, gameState.sky.timeToNight / (50 * 1000));
-                    opacity = Math.max(0, opacity);
-                    bg.alpha = opacity;
-                    bgNightOverlay.alpha = 1 - opacity;
+                if (true || gameState.sky.active) { // TEMP
+                    gameState.sky.nightWatch += game.time.elapsed;
+
+                    var accumulated = gameState.sky.nightWatch;
+                    accumulated -= 1 * 1000; // First ten seconds don't experience change
+
+                    // Last sky is the the earliest.
+                    for (var i = skies.length - 1; i >= 0; i--) {
+                        if (accumulated > skies[i].ttl) {
+                            // If i == 0, it is night time.
+                            skies[i].bg.alpha = i == 0 ? 1 : 0;
+                            if (i < skies.length - 1) skies[i].overlay.alpha = skies[i].bg.alpha;
+                        } else if (accumulated > 0) {
+                            var ratio = accumulated / skies[i].ttl;
+                            // Fade out current background and overlay.
+                            skies[i].bg.alpha = 1 - ratio;
+                            if (i < skies.length - 1) skies[i].overlay.alpha = 1 - ratio;
+                            // Fade in next overlay.
+                            if (i > 0) {
+                                skies[i-1].overlay.alpha = ratio;
+                                skies[i-1].bg.alpha = 1;
+                                i--; // Skip iteration so it doesn't get hidden.
+                            }
+                        } else {
+                            // If this is the beginning, just show it.
+                            if (i == skies.length - 1) skies[i].bg.alpha = 1;
+                            // Otherwise, this is behind any skies fading in.
+                            else skies[i].overlay.alpha = 0;
+                        }
+                        accumulated -= skies[i].ttl;
+                    }
+                } else {
+                    // Just show the last.
+                    for (var i = 0; i < skies.length - 1; i++) skies[i].overlay.alpha = 0;
+                    skies[skies.length - 1].overlay.alpha = skies[skies.length - 1].bg.alpha = 1;
                 }
             } else {
+
                 bg.alpha = 1;
                 bgNightOverlay.alpha = 0;
             }
@@ -1070,6 +1109,7 @@
                 var camDiff = targetCameraX - game.camera.x;
                 if (Math.abs(camDiff) < .01 || stateJustReset) {
                     game.camera.x = targetCameraX;
+                    stateJustReset = false;
                 } else {
                     var maxCamDelta = 100;
                     if (Math.abs(camDiff) > maxCamDelta) {
@@ -1162,15 +1202,10 @@
         }
 
         screenTick["game"] = function() {
-            // Check here so reset flag gets one single run.
-            var resetStateRestFlag = false;
-            if (stateJustReset) resetStateRestFlag = true;
-
             roomTick[gameState.room]();
             game.sound.mute = gameState.muted;
             tickDisplayText();
             waterTick();
-            if (resetStateRestFlag) stateJustReset = false;
         }
 
         function update() {
