@@ -1,0 +1,24 @@
+<!doctype html>
+
+<html lang="en">
+
+<body>
+    <div id="game"></div>
+    <script src="../js/phaser.min.js"></script>
+    <script>
+        var keysDown = {};
+        var game = new Phaser.Game(100, 100, Phaser.AUTO, "game", {
+            update: function() {
+                // It's not just the phaser input library, but even this sticks!
+                console.log(keysDown[Phaser.KeyCode.SPACEBAR]);
+            }
+        });
+        window.addEventListener("keydown", function(e) {
+            keysDown[e.keyCode] = true;
+        });
+        window.addEventListener("keyup", function(e) {
+            keysDown[e.keyCode] = false;
+        })
+    </script>
+</body>
+</html>

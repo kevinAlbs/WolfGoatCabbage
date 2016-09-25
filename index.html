@@ -39,6 +39,12 @@
         #mute:hover {
             opacity: 1;
         }
+        #browser-warning {
+            display: none;
+            font-family: "Arial", "Helvetica";
+            font-size: 10pt;
+            padding-top: 5px;
+        }
     </style>
 
     <!--[if lt IE 9]>
@@ -49,10 +55,14 @@
 <body>
     <div id="container">
         <div id="game"></div>
+        <div id="browser-warning">Best viewed in Google Chrome, Firefox, or Safari</div>
         <a href="#" id="mute" data-muted="false" title="Mute/Unmute">Mute</a>
     </div>
     <script src="js/phaser.min.js"></script>
     <script>
+        if (navigator.userAgent.match(/(Edge|Trident)/)) {
+            document.querySelector("#browser-warning").style.display = "block";
+        }
         var game = new Phaser.Game(900, 450, Phaser.AUTO, "game", {
             preload: preload,
             create: create,
@@ -459,6 +469,7 @@
             game.load.image("gun", "img/gun.png");
             game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
             game.load.audio("sounds", "snd/all.mp3?v8");
+            // Gunshot curtosy of http://www.freesound.org/people/lensflare8642/sounds/145209/
             game.load.image("water", "img/water.png?v2");
             game.load.image("barn-fg", "img/barn-fg.png");
         }
@@ -472,8 +483,8 @@
             skies = [
                 { bg: game.add.sprite(0, 0, "bg", 5), ttl: 0 },
                 { bg: game.add.sprite(0, 0, "bg", 3), ttl: 15 * 1000 },
-                { bg: game.add.sprite(0, 0, "bg", 1), ttl: 15 * 1000 },
-                { bg: game.add.sprite(0, 0, "bg", 0), ttl: 15 * 1000 }
+                { bg: game.add.sprite(0, 0, "bg", 1), ttl: 20 * 1000 },
+                { bg: game.add.sprite(0, 0, "bg", 0), ttl: 20 * 1000 }
             ];
             
             water.group = game.add.group()
@@ -577,8 +588,6 @@
 
             noise = game.add.audio("sounds");
             noise.addMarker("noise", 110.26, 5, 1, true);
-
-            loadState();
         }
 
         // Checks if farmer can get on or off boat, and may bound farmer position to lake exterior.
@@ -679,7 +688,7 @@
 
             // Check if farmer can go to sleep.
             if (farmer.state.floor == 2 && boundCheck(farmer, 670 - fhw, 740 + fhw) == kIn) {
-                if (gameState.sky.nightWatch >= 45 * 1000) {
+                if (gameState.sky.nightWatch >= 50 * 1000) {
                     if (prompt("(space) to sleep")) {
                         farmer.state.body = "sleeping";
                         transitionState(3000, function() {
@@ -985,7 +994,7 @@
             if (gameState.day == 1 && gameState.sky.active) {
                 gameState.sky.nightWatch += game.time.elapsed;
                 var accumulated = gameState.sky.nightWatch;
-                accumulated -= 5 * 1000; // First five seconds don't experience change.
+                accumulated -= 10 * 1000; // First bit doesn't experience change.
 
                 // Last sky is the the earliest.
                 for (var i = skies.length - 1; i >= 0; i--) {
@@ -1215,6 +1224,16 @@
             e.preventDefault();
             return false;
         }, false);
+    </script>
+
+    <script>
+        (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+        (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+        m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+        })(window,document,'script','https://www.google-analytics.com/analytics.js','ga');
+
+        ga('create', 'UA-37996372-9', 'auto');
+        ga('send', 'pageview');
     </script>
 </body>
 </html>

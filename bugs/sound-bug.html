@@ -1,0 +1,30 @@
+<!doctype html>
+
+<html lang="en">
+
+<body>
+    <div id="game"></div>
+    <script src="../js/phaser.min.js"></script>
+    <script>
+    // PhaserGlobal = {
+    //     disableWebAudio: true
+    // };
+        var snd;
+        var x, y;
+        var game = new Phaser.Game(100, 100, Phaser.AUTO, "game", {
+            preload: function() {
+                game.load.audio("snd", "snd/all.mp3");
+            },
+            create: function() {
+                x = game.add.audio("snd");
+                y = game.add.audio("snd");
+                x.addMarker("a", 0, 60);
+                y.addMarker("b", 67, 41);
+                // In IE11 these won't play together.
+                x.play("a");
+                y.play("b");
+            },
+        });
+    </script>
+</body>
+</html>
