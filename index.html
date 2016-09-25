@@ -59,7 +59,6 @@
             update: update
         }, false, false, null);
 
-        var bg, bgNight, bgNightOverlay; // bg is a group which fades during night transition. TODO: make this cleaner and support multiple background transitions for nighttime.
         var skies = [];
         var kLakeStartX = 140, kLakeEndX = 370;
         var kBarnStartX = 618, kBarnStepStartX = 597;
@@ -179,8 +178,8 @@
 
         var gameState = {
             day: 1,
-            screen: "menu", // menu, credits (TODO)
-            room: "outside", // barn
+            screen: "menu", // game
+            room: "outside", // barn, end
             sky: {
                 changing: false,
                 nightWatch: 0
@@ -287,7 +286,6 @@
             }
         }
 
-        // Idempotent.
         function showTitle(msg, restart) {
             if (restart && isPressed(Phaser.KeyCode.SPACEBAR)) {
                 if (title.showing) title.group.destroy();
@@ -843,7 +841,6 @@
             farmer.sprite.position.y = yPos(farmer);
         }
 
-        // Assumes y positions have been set for actors.
         function boatTick() {
             var bx = boat.state.x, bhw = boat.sprite.width / 2;
             // Check for state transitions.
@@ -972,7 +969,7 @@
             if (gameState.day == 1 && gameState.sky.active) {
                 gameState.sky.nightWatch += game.time.elapsed;
                 var accumulated = gameState.sky.nightWatch;
-                accumulated -= 5 * 1000; // First ten seconds don't experience change
+                accumulated -= 5 * 1000; // First five seconds don't experience change.
 
                 // Last sky is the the earliest.
                 for (var i = skies.length - 1; i >= 0; i--) {
@@ -1032,8 +1029,6 @@
                 if (isPressed(Phaser.KeyCode.SPACEBAR)) {
                     gameState.endSequence.step++;
                     gameState.endSequence.highlightTimer = 250;
-                    // Increment farmer sprite animation by number of presses.
-                    // TODO: Change based on rate.
                 }
 
                 if (inRange(5, 10)) {
