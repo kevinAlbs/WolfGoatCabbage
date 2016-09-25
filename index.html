@@ -293,6 +293,13 @@
             }
         }
 
+        function stopBgMusic() {
+            if (audioKeyPlaying != "") {
+                backgroundMusic.stop();
+                audioKeyPlaying = "";
+            }
+        }
+
         function showTitle(msg, restart) {
             if (restart && isPressed(Phaser.KeyCode.SPACEBAR)) {
                 if (title.showing) title.group.destroy();
@@ -563,7 +570,7 @@
 
             backgroundMusic = game.add.audio("sounds");
             backgroundMusic.addMarker("bg", 0, 66.56, 1, true);
-            backgroundMusic.addMarker("reverse", 66.56, 43.4, 1, true);
+            backgroundMusic.addMarker("reverse", 67, 41, 1, true);
 
             gunshot = game.add.audio("sounds");
             gunshot.addMarker("gunshot", 116.06, 1.2, false);
@@ -605,6 +612,7 @@
                         fx = farmer.state.x = kLakeEndX + fhw;
                     } else if (boatFilled) {
                         displayText("not enough room");
+                        fx = farmer.state.x = kLakeEndX + fhw;
                     } else {
                         fx = farmer.state.x = boat.state.x + 20;
                         farmer.state.boat = kIn;
@@ -715,6 +723,7 @@
         };
 
         function farmerStateTransitions() {
+            if (gameState.room == "end") return;
             var fx = farmer.state.x;
             var fhw = farmer.width / 2;
 
@@ -1073,8 +1082,6 @@
                 showTitle("", false);
                 game.camera.shake(0, 0, true);
             }
-
-            console.log(gameState.endSequence.step);
         }
 
         function cameraTick() {
@@ -1094,7 +1101,6 @@
                 var camDiff = targetCameraX - game.camera.x;
                 if (Math.abs(camDiff) < .01 || stateJustReset) {
                     game.camera.x = targetCameraX;
-                    stateJustReset = false;
                 } else {
                     var maxCamDelta = 100;
                     if (Math.abs(camDiff) > maxCamDelta) {
@@ -1146,6 +1152,7 @@
         roomTick["barn"] = function() {
             farmerTick();
             skyTick();
+            if (gameState.day == 2) stopBgMusic();
         };
 
         roomTick["outside"] = function() {
@@ -1165,6 +1172,7 @@
             // Play the noise if not already.
             if (noiseState == "unstarted") {
                 noise.play("noise", 0, 0, true);
+                noiseState = "looping";
             } else {
                 noise.volume = Math.min(gameState.endSequence.step / 70, 1);
             }
@@ -1191,6 +1199,7 @@
             game.sound.mute = muted;
             tickDisplayText();
             waterTick();
+            if (stateJustReset) stateJustReset = false;
         }
 
         function update() {
