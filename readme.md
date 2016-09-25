@@ -7,7 +7,7 @@ Code cleaning
 
 Artwork
 -------
-- Fix night transition
+
 
 Misc
 ----
@@ -16,6 +16,7 @@ Misc
 - Full bug checking
 - Remove any ES6 specific code, test on all browsers
 - Add Google Analytics
+- Retain mute state on reset
 
 Extra
 -----
@@ -31,3 +32,4 @@ Extra
 - Change strings to const's
 - Add consts for all magic numbers
 - Redo stair animation
+- Rest of music should be programmatic (e.g. if farmer walks back into barn, music should stop)

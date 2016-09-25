@@ -437,12 +437,14 @@
 
         function preload() {
             game.load.image("title", "img/title.png");
-            game.load.image("bg-night", "img/bg-night.png?v3");
-            game.load.image("bg-1", "img/bg-1.png?v2");
+            game.load.image("fg-1", "img/fg-1.png");
+            game.load.image("bg-1", "img/bg-1.png");
             game.load.image("bg-2", "img/bg-2.png");
-            game.load.image("bg-1-1", "img/bg-1-1.png");
-            game.load.image("bg-1-1-overlay", "img/bg-1-1-overlay.png");
-            game.load.image("bg-night-overlay", "img/bg-night-overlay.png?v2");
+            game.load.image("bg-2-overlay", "img/bg-2-overlay.png");
+            game.load.image("bg-3", "img/bg-3.png");
+            game.load.image("bg-3-overlay", "img/bg-3-overlay.png");
+            game.load.image("bg-night", "img/bg-night.png");
+            game.load.image("bg-night-overlay", "img/bg-night-overlay.png");
             game.load.spritesheet("goat", "img/goat.png?v2", 25, 20);
             game.load.spritesheet("wolf", "img/wolf.png?v3", 31, 20);
             game.load.spritesheet("cabbage", "img/cabbage.png", 12, 8);
@@ -467,10 +469,10 @@
 
             skies = [
                 { bg: game.add.sprite(0, 0, "bg-night"), ttl: 0 },
-                { bg: game.add.sprite(0, 0, "bg-1-1"), ttl: 4 * 1000 },
-                { bg: game.add.sprite(0, 0, "bg-1"), ttl: 4 * 1000 }
+                { bg: game.add.sprite(0, 0, "bg-3"), ttl: 15 * 1000 },
+                { bg: game.add.sprite(0, 0, "bg-2"), ttl: 15 * 1000 },
+                { bg: game.add.sprite(0, 0, "bg-1"), ttl: 15 * 1000 }
             ];
-
             
             water.group = game.add.group()
             water.group.x = 120;
@@ -484,7 +486,7 @@
                 water.data.push({ vel: 0, sprite: ws, velocityDriven: i % 15 == 0 });
             }
             
-            game.add.sprite(0, 0, "bg-2");
+            game.add.sprite(0, 0, "fg-1");
             
             // Add menu sprites.
             game.add.sprite(kCamMenu + 10, 10, "title");
@@ -558,7 +560,9 @@
             game.add.sprite(650, 0, "barn-fg");
 
             skies[0].overlay = game.add.sprite(0, 0, "bg-night-overlay");
-            skies[1].overlay = game.add.sprite(0, 0, "bg-1-1-overlay");
+            skies[1].overlay = game.add.sprite(0, 0, "bg-3-overlay");
+            skies[2].overlay = game.add.sprite(0, 0, "bg-2-overlay");
+            
 
             textDisplay.graphics = game.add.graphics(0, 0);
             textDisplay.graphics.fixedToCamera = true;
@@ -669,7 +673,7 @@
 
             // Check if farmer can go to sleep.
             if (farmer.state.floor == 2 && boundCheck(farmer, 670 - fhw, 740 + fhw) == kIn) {
-                if (gameState.sky.nightWatch < 50000) {
+                if (gameState.sky.nightWatch >= 45 * 1000) {
                     if (prompt("(space) to sleep")) {
                         farmer.state.body = "sleeping";
                         transitionState(3000, () => {
@@ -975,47 +979,40 @@
         }
 
         function skyTick() {
-            if (gameState.day == 1) {
-                if (true || gameState.sky.active) { // TEMP
-                    gameState.sky.nightWatch += game.time.elapsed;
+            if (gameState.day == 1 && gameState.sky.active) {
+                gameState.sky.nightWatch += game.time.elapsed;
+                var accumulated = gameState.sky.nightWatch;
+                accumulated -= 5 * 1000; // First ten seconds don't experience change
 
-                    var accumulated = gameState.sky.nightWatch;
-                    accumulated -= 1 * 1000; // First ten seconds don't experience change
-
-                    // Last sky is the the earliest.
-                    for (var i = skies.length - 1; i >= 0; i--) {
-                        if (accumulated > skies[i].ttl) {
-                            // If i == 0, it is night time.
-                            skies[i].bg.alpha = i == 0 ? 1 : 0;
-                            if (i < skies.length - 1) skies[i].overlay.alpha = skies[i].bg.alpha;
-                        } else if (accumulated > 0) {
-                            var ratio = accumulated / skies[i].ttl;
-                            // Fade out current background and overlay.
-                            skies[i].bg.alpha = 1 - ratio;
-                            if (i < skies.length - 1) skies[i].overlay.alpha = 1 - ratio;
-                            // Fade in next overlay.
-                            if (i > 0) {
-                                skies[i-1].overlay.alpha = ratio;
-                                skies[i-1].bg.alpha = 1;
-                                i--; // Skip iteration so it doesn't get hidden.
-                            }
-                        } else {
-                            // If this is the beginning, just show it.
-                            if (i == skies.length - 1) skies[i].bg.alpha = 1;
-                            // Otherwise, this is behind any skies fading in.
-                            else skies[i].overlay.alpha = 0;
+                // Last sky is the the earliest.
+                for (var i = skies.length - 1; i >= 0; i--) {
+                    if (accumulated > skies[i].ttl) {
+                        // If i == 0, it is night time.
+                        skies[i].bg.alpha = i == 0 ? 1 : 0;
+                        if (i < skies.length - 1) skies[i].overlay.alpha = skies[i].bg.alpha;
+                    } else if (accumulated > 0) {
+                        var ratio = accumulated / skies[i].ttl;
+                        // Fade out current background and overlay.
+                        skies[i].bg.alpha = 1 - ratio;
+                        if (i < skies.length - 1) skies[i].overlay.alpha = 1 - ratio;
+                        // Fade in next overlay.
+                        if (i > 0) {
+                            skies[i-1].overlay.alpha = ratio;
+                            skies[i-1].bg.alpha = 1;
+                            i--; // Skip iteration so it doesn't get hidden.
                         }
-                        accumulated -= skies[i].ttl;
+                    } else {
+                        // If this is the beginning, just show it.
+                        if (i == skies.length - 1) skies[i].bg.alpha = 1;
+                        // Otherwise, this is behind any skies fading in.
+                        else skies[i].overlay.alpha = 0;
                     }
-                } else {
-                    // Just show the last.
-                    for (var i = 0; i < skies.length - 1; i++) skies[i].overlay.alpha = 0;
-                    skies[skies.length - 1].overlay.alpha = skies[skies.length - 1].bg.alpha = 1;
+                    accumulated -= skies[i].ttl;
                 }
             } else {
-
-                bg.alpha = 1;
-                bgNightOverlay.alpha = 0;
+                // Just show daytime.
+                for (var i = 0; i < skies.length - 1; i++) skies[i].overlay.alpha = 0;
+                skies[skies.length - 1].bg.alpha = 1;
             }
         }
 
