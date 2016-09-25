@@ -152,9 +152,9 @@
         };
 
         // Yes - cabbage is an animal.
-        var animals = new Map([["goat", goat], ["cabbage", cabbage], ["wolf", wolf]]); 
-        var actors = new Map(animals.entries());
-        actors.set("farmer", farmer);
+        var actors = { "farmer": farmer, "goat": goat, "wolf": wolf, "cabbage": cabbage };
+        var animalNames = ["goat", "cabbage", "wolf"];
+        var actorNames = ["goat", "cabbage", "wolf", "farmer"];
 
         var keysDownHandled = {};
 
@@ -211,6 +211,9 @@
             data: [],
         }; 
 
+        function sign(num) {
+            return num > 0 ? 1 : -1;
+        }
         // Caller's responsibility to reset timer.
         function timerWait(key, duration) {
             if (!timers.hasOwnProperty(key) || timers[key] == -1) {
@@ -233,10 +236,10 @@
             if (isTransitioning) return;
             isTransitioning = true;
             isFadingOut = true;
-            game.camera.onFadeComplete.add(() => {
+            game.camera.onFadeComplete.add(function() {
                 callback();
                 isFadingOut = false;
-                game.camera.onFlashComplete.add(() => {
+                game.camera.onFlashComplete.add(function() {
                     isTransitioning = false;
                     // Clear current event listeners.
                     game.camera.onFadeComplete.removeAll();
@@ -269,7 +272,11 @@
 
         function isRiddleSolved() {
             var solved = true;
-            animals.forEach((animal, animalName) => { solved = solved && animal.state.x >= kLakeEndX && farmer.state.pickingUp != animalName; });
+            animalNames.forEach(function(animalName) {
+                var animal = actors[animalName];
+                solved = solved && animal.state.x >= kLakeEndX
+                    && farmer.state.pickingUp != animalName;
+            });
             return solved;
         }
 
@@ -577,7 +584,8 @@
                 && boundCheck(farmer, kLakeStartX - fw, kLakeEndX + fw) == kIn) {
                 // Farmer is at lake boundary.
                 var boatFilled = false;
-                animals.forEach((animal) => {
+                animalNames.forEach(function(animalName) {
+                    var animal = actors[animalName];
                     boatFilled = boatFilled || animal.state.boat == kIn;
                 });
                 boatFilled = boatFilled && farmer.state.pickingUp != "none";
@@ -608,7 +616,7 @@
                 // Check if farmer can get out of boat.
                 var bx = boat.state.x, bhw = boat.sprite.width / 2;
                 var farmerBoundCheck = boundCheck(farmer, bx - bhw + 4, bx + bhw - 4);
-                var boundFarmer = () => { boundX(farmer, bx - bhw + 3, bx + bhw - 3); };
+                function boundFarmer() { boundX(farmer, bx - bhw + 3, bx + bhw - 3); };
                 // Cannot leave if boat is moving or the farmer on opposite side.
                 if (boat.state.body == "moving") {
                     boundFarmer();
@@ -643,17 +651,18 @@
                 fx = farmer.state.x = Math.min(fx, kCamBeforeFarm + 300 - fhw);
                 // Check for picking up or dropping animals.
                 if (farmer.state.pickingUp == "none") {
-                    animals.forEach((actor, actorName) => {
-                        if (Math.abs(farmer.state.x - actor.state.x) < 4) {
-                            if (prompt("(space) to pick up " + actorName)) {
-                                farmer.state.pickingUp = actorName;
-                                actor.state.body = "held";
+                    animalNames.forEach(function(animalName) {
+                        var animal = actors[animalName];
+                        if (Math.abs(farmer.state.x - animal.state.x) < 4) {
+                            if (prompt("(space) to pick up " + animalName)) {
+                                farmer.state.pickingUp = animalName;
+                                animal.state.body = "held";
                             }
                         }
                     });
                 } else {
                     if (prompt("(space) to drop " + farmer.state.pickingUp)) {
-                        var animal = animals.get(farmer.state.pickingUp);
+                        var animal = actors[farmer.state.pickingUp];
                         animal.state.body = "idle";
                         farmer.state.pickingUp = "none";
                     }
@@ -665,7 +674,7 @@
                 if (gameState.sky.nightWatch >= 45 * 1000) {
                     if (prompt("(space) to sleep")) {
                         farmer.state.body = "sleeping";
-                        transitionState(3000, () => {
+                        transitionState(3000, function() {
                             gameState.day = 2;
                             boat.state.x = kLakeStartX + boat.sprite.width / 2;
                             boat.state.side = kLeft;
@@ -734,7 +743,7 @@
                 if (farmer.state.x > kBarnStartX) {
                     // The first time the farmer enters the barn the sky turns.
                     gameState.sky.active = true;
-                    transitionState(1000, () => {
+                    transitionState(1000, function() {
                         gameState.room = "barn";
                         farmer.state.x = fx = kCamBarn + 10;
                     });
@@ -795,7 +804,7 @@
 
                 if (fx <= kCamBarn) {
                     if (farmer.state.floor == 1) {
-                        transitionState(1000, () => {
+                        transitionState(1000, function() {
                             farmer.state.x = fx = kBarnStartX - 1;
                             gameState.room = "outside";
                         });
@@ -849,8 +858,8 @@
 
             if (boat.state.body == "moving") {
                 var deltaX = boat.state.dir * game.time.elapsed * .05;
-                actors.forEach((actor) => {
-                    actor.state.x += actor.state.boat == kIn ? deltaX : 0;
+                actorNames.forEach(function(actorName) {
+                    actors[actorName].state.x += actors[actorName].state.boat == kIn ? deltaX : 0;
                 });
                 bx = boat.state.x = bx + deltaX;
                 if (boat.state.dir == kRight) {
@@ -881,17 +890,15 @@
                 return;
             }
             // Apply properties common to all animals.
-            actors.forEach((actor, actorName) => {
-                if (actorName == "farmer") return;
-                if (actor.state.body == "held") {
-                   actor.state.boat = farmer.state.boat;
-                   actor.state.x = farmer.sprite.position.x;
-                   //actor.state.y = 75;
-                   actor.state.dir = farmer.state.dir;
-                   actor.sprite.visible = false;
+            animalNames.forEach(function(animalName) {
+                var animal = actors[animalName];
+                if (animal.state.body == "held") {
+                   animal.state.boat = farmer.state.boat;
+                   animal.state.x = farmer.sprite.position.x;
+                   animal.state.dir = farmer.state.dir;
+                   animal.sprite.visible = false;
                 } else {
-                   //actor.state.y = 88;
-                   actor.sprite.visible = true;
+                   animal.sprite.visible = true;
                 }
             });
 
@@ -925,7 +932,7 @@
             if (wolf.state.body == "walking") {
                 var diff = goat.state.x - wolf.state.x;
                 if (Math.abs(diff) > 13) {
-                    wolf.state.dir = Math.sign(diff);
+                    wolf.state.dir = sign(diff);
                     wolf.state.x += .05 * wolf.state.dir * game.time.elapsed;
                 } else {
                     wolf.state.body = "eating";
@@ -940,7 +947,7 @@
             if (goat.state.body == "walking") {
                 var diff = cabbage.state.x - goat.state.x;
                 if (Math.abs(diff) > 10) {
-                    goat.state.dir = Math.sign(diff);
+                    goat.state.dir = sign(diff);
                     goat.state.x += .04 * goat.state.dir * game.time.elapsed;
                 } else {
                     goat.goingForKill = false;
@@ -952,10 +959,10 @@
             }
 
             // Apply states common to all.
-            actors.forEach((actor, actorName) => {
-                if (actorName == "farmer") return;
-                actor.sprite.position.x = actor.state.x;
-                actor.sprite.position.y = yPos(actor);
+            animalNames.forEach(function(animalName) {
+                var animal = actors[animalName];
+                animal.sprite.position.x = animal.state.x;
+                animal.sprite.position.y = yPos(animal);
             });
 
             cabbage.sprite.animations.play(cabbage.state.body);
@@ -1091,7 +1098,7 @@
                 } else {
                     var maxCamDelta = 100;
                     if (Math.abs(camDiff) > maxCamDelta) {
-                        camDiff = Math.sign(camDiff) * maxCamDelta;
+                        camDiff = sign(camDiff) * maxCamDelta;
                     }
                     game.camera.x += game.time.elapsed * camDiff * .002;
                 }
@@ -1110,7 +1117,7 @@
         function waterTick() {
             // At random timer interval, set velocities for velocity driven points.
             if (timerWait("water", waterTime) == 0) {
-                water.data.forEach((w) => {
+                water.data.forEach(function(w) {
                     if (!w.velocityDriven) return;
                     // Only move if the water isn't moving much to prevent jitter.
                     if (Math.abs(w.sprite.y) > 3 || Math.abs(w.vel) > .5) return;
@@ -1127,7 +1134,7 @@
                     var avg = .5 * d1 + .5 * d2;
                     water.data[i].sprite.y += avg;
                 } else {
-                    water.data[i].vel += .1 * Math.sign(-1 * water.data[i].sprite.y);
+                    water.data[i].vel += .1 * sign(-1 * water.data[i].sprite.y);
                     water.data[i].sprite.y += .1 * water.data[i].vel;
                     water.data[i].vel *= .991;
                 }
@@ -1172,7 +1179,7 @@
             displayText("(space) to play");
             tickDisplayText();
             if (isPressed(Phaser.KeyCode.SPACEBAR)) {
-                transitionState(1000, () => {
+                transitionState(1000, function() {
                     gameState.screen = "game";
                 });
             }
@@ -1193,7 +1200,7 @@
             cameraTick();
         }
 
-        muteButton.addEventListener("click", (e) => {
+        muteButton.addEventListener("click", function(e) {
             muted = !muted;
             updateMuteButton();
             e.preventDefault();

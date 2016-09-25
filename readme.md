@@ -23,7 +23,7 @@ Extra
 - Combine foreground images into one.
 - Have goat run away from wolf during end sequence
 - Write WebGL filter for zoom blur or something.
-- Auto shadows
+- Auto shadows (try in PhotoShop)
     + Flip, scale, rotate, ERODE!
 - Decision trees for state transition logic
 - Make mute button in Phaser, not HTML (scaling better, more consistency)
@@ -32,6 +32,7 @@ Extra
 - Redo stair animation
 - Rest of music should be programmatic (e.g. if farmer walks back into barn, music should stop)
 - Add goat noise
+- Add JS error checker, which will ping me with the stack trace when a Javascript error is caught.
 
 Credit
 ------
