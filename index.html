@@ -72,7 +72,7 @@
         var skies = [];
         var kLakeStartX = 140, kLakeEndX = 370;
         var kBarnStartX = 618, kBarnStepStartX = 597;
-        var kCamBeforeFarm = 190, kCamAfterFarm = 650 - 300, kCamBarn = 650; // TODO: remove kCamBarn constant in favor of position
+        var kCamBeforeFarm = 190, kCamAfterFarm = 650 - 300, kCamBarn = 650;
         var kCamMenu = 950, kCamEnd = 950;
         var kGroundY = 89;
         var kLeft = -1, kRight = 1, kCenter = 0;
@@ -261,8 +261,8 @@
             game.camera.fade(0x000000, duration, true);
         }
 
-        // Returns true if this keycode is down. If it returns true, it will wait until it is released
-        // and re-pressed before returning true again.
+        // Returns true if this keycode is down. If it returns true, it will wait until it is
+        // released and re-pressed before returning true again.
         function isPressed(keycode) {
             if (game.input.keyboard.isDown(keycode)) {
                 if (keysDownHandled[keycode]) {
@@ -324,6 +324,7 @@
             }
             title.showing = true;
             title.group = game.add.group();
+            // title.group.fixedToCamera = true; // Doesn't scale correctly!
             title.group.add(game.add.sprite(10, 10, "title"));
             if (msg) title.group.add(game.add.bitmapText(85, 12, "font", msg, 16));
             if (restart) title.group.add(
@@ -993,13 +994,20 @@
         function skyTick() {
             if (gameState.day == 1 && gameState.sky.active) {
                 gameState.sky.nightWatch += game.time.elapsed;
-                var accumulated = gameState.sky.nightWatch;
-                accumulated -= 10 * 1000; // First bit doesn't experience change.
 
-                // Last sky is the the earliest.
+                // First hide all overlays and show all backgrounds.
+                skies.forEach(function(sky) { 
+                    sky.bg.alpha = 1;
+                    if (sky.overlay) sky.overlay.alpha = 0;
+                });
+
+                var accumulated = gameState.sky.nightWatch;
+                accumulated -= 10 * 1000;
+
+                // Hide all backgrounds which are past their ttl, and tween current overlays.
                 for (var i = skies.length - 1; i >= 0; i--) {
                     if (accumulated > skies[i].ttl) {
-                        // If i == 0, it is night time.
+                        // Background is past ttl, if i == 0, it is night time.
                         skies[i].bg.alpha = i == 0 ? 1 : 0;
                         if (i < skies.length - 1) skies[i].overlay.alpha = skies[i].bg.alpha;
                     } else if (accumulated > 0) {
@@ -1011,19 +1019,13 @@
                         if (i > 0) {
                             skies[i-1].overlay.alpha = ratio;
                             skies[i-1].bg.alpha = 1;
-                            i--; // Skip iteration so it doesn't get hidden.
                         }
-                    } else {
-                        // If this is the beginning, just show it.
-                        if (i == skies.length - 1) skies[i].bg.alpha = 1;
-                        // Otherwise, this is behind any skies fading in.
-                        else skies[i].overlay.alpha = 0;
                     }
                     accumulated -= skies[i].ttl;
                 }
             } else {
                 // Just show daytime.
-                for (var i = 0; i < skies.length - 1; i++) skies[i].overlay.alpha = 0;
+                skies.forEach(function(sky) { if (sky.overlay) sky.overlay.alpha = 0; });
                 skies[skies.length - 1].bg.alpha = 1;
             }
         }

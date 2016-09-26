@@ -1,0 +1,25 @@
+<!doctype html>
+
+<html lang="en">
+
+<body>
+    <div id="game"></div>
+    <script src="../js/phaser.min.js"></script>
+    <script>
+var game = new Phaser.Game(100, 100, Phaser.AUTO, "game", {
+    preload: function() {
+        game.load.image("ex", "ex.png");
+    },
+    create: function() {
+        var group = game.add.group();
+        group.fixedToCamera = true;
+        game.camera.scale.set(2, 2);
+        group.add(game.add.sprite(0, 0, "ex"));
+    },
+    update: function() {
+        game.camera.x += 1;
+    }
+});
+    </script>
+</body>
+</html>

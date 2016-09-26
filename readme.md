@@ -1,5 +1,5 @@
 # Wolf, Goat, Cabbage #
-A short game based on the classical riddle.
+A short game based on the classic riddle.
 
 ![Screenshot of Game](./img/screenshot.png)
 
