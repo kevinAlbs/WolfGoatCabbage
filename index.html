@@ -222,7 +222,7 @@
             data: [],
         }; 
         function init() {
-            game.sound.boot();
+            //game.sound.boot();
         }
         function sign(num) {
             return num > 0 ? 1 : -1;
@@ -592,6 +592,7 @@
 
             noise = game.add.audio("sounds");
             noise.addMarker("noise", 110.26, 5, 1, true);
+            game.sound.boot();
         }
 
         // Checks if farmer can get on or off boat, and may bound farmer position to lake exterior.
