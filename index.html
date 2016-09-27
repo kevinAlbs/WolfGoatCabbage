@@ -66,7 +66,8 @@
         var game = new Phaser.Game(900, 450, Phaser.AUTO, "game", {
             preload: preload,
             create: create,
-            update: update
+            update: update,
+            init: init
         }, false, false, null);
 
         var skies = [];
@@ -220,7 +221,9 @@
             group: null, // group containing water sprites, so sprites are relatively positioned.
             data: [],
         }; 
-
+        function init() {
+            game.sound.boot();
+        }
         function sign(num) {
             return num > 0 ? 1 : -1;
         }
@@ -469,7 +472,7 @@
             game.load.image("barn-front", "img/barn-front.png");
             game.load.image("gun", "img/gun.png");
             game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
-            game.load.audio("sounds", ["snd/all.m4a", "snd/all.mp3"]);
+            game.load.audio("sounds", "snd/all.mp3");
             // Gunshot curtosy of http://www.freesound.org/people/lensflare8642/sounds/145209/
             game.load.image("water", "img/water.png?v2");
             game.load.image("barn-fg", "img/barn-fg.png");
