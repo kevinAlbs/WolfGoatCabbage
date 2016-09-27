@@ -34,3 +34,7 @@ properly, and instead run into the next marker!
 
 Audio seems to be a bit of a deeper issue. Namely, even using one sound object with allowMultiple
 set to true doesn't seem to work in chrome.
+
+Safari
+Audio won't play on the first load of the page, see issue here: http://www.html5gamedevs.com/topic/19761-safari-and-problem-with-sound/?_fromLogin=1
+The fix proposed didn't work for me, I was able to work around with manually calling game.sound.update() and context.resume() if it was detected, but I'd like to take a deeper look.
