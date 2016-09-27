@@ -210,7 +210,7 @@
         // Map state names to implementing functions.
         var screenTick = {}, roomTick = {}, farmerDayTick = {};
         var muteButton = document.getElementById("mute");
-        var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null;
+        var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null, audioDecoded = false;
         var noise = null, noiseState = "unstarted"; // fading, looping
         var gunshot = null;
 
@@ -295,7 +295,8 @@
         }
 
         function playIfNotPlaying(key) {
-            if (audioKeyPlaying != key) {
+            // If the audio hasn't yet been decoded, do not play (bug with safari).
+            if (audioDecoded && audioKeyPlaying != key) {
                 // Stop all sounds.
                 backgroundMusic.stop();
                 audioPlaying = backgroundMusic.play(key, 0, 1, true);
@@ -583,6 +584,7 @@
             backgroundMusic = game.add.audio("sounds");
             backgroundMusic.addMarker("bg", 0, 66.56, 1, true);
             backgroundMusic.addMarker("reverse", 67, 41, 1, true);
+            backgroundMusic.onDecoded = function() { audioDecoded = true; };
 
             gunshot = game.add.audio("sounds");
             gunshot.addMarker("gunshot", 116.06, 1.2, false);

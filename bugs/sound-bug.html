@@ -13,7 +13,7 @@
         var x, y;
         var game = new Phaser.Game(100, 100, Phaser.AUTO, "game", {
             preload: function() {
-                game.load.audio("snd", "snd/all.mp3");
+                game.load.audio("snd", "../snd/all.mp3");
             },
             create: function() {
                 x = game.add.audio("snd");
