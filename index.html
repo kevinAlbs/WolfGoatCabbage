@@ -212,6 +212,7 @@
         var screenTick = {}, roomTick = {}, farmerDayTick = {};
         var muteButton = document.getElementById("mute");
         var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null;
+	var applySafariSoundFix = false;
         var noise = null, noiseState = "unstarted"; // fading, looping
         var gunshot = null;
 
@@ -303,6 +304,12 @@
                 backgroundMusic.stop();
                 audioPlaying = backgroundMusic.play(key, 0, 1, true);
                 audioKeyPlaying = key;
+                if (audioPlaying.context.state == "suspended") {
+                    // Safari bug most likely
+                    console.log("Safari sound bug detected, applying fix");
+		    applySafariSoundFix = true;
+                    audioPlaying.context.resume();
+		}
             }
         }
 
@@ -1222,6 +1229,7 @@
             if (game.time.elapsed > 1000) return;
             screenTick[gameState.screen]();
             cameraTick();
+            if (applySafariSoundFix) game.sound.update();
         }
 
         muteButton.addEventListener("click", function(e) {
