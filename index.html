@@ -210,7 +210,7 @@
         // Map state names to implementing functions.
         var screenTick = {}, roomTick = {}, farmerDayTick = {};
         var muteButton = document.getElementById("mute");
-        var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null, audioDecoded = false;
+        var backgroundMusic = null, audioKeyPlaying = "", audioPlaying = null;
         var noise = null, noiseState = "unstarted"; // fading, looping
         var gunshot = null;
 
@@ -295,8 +295,7 @@
         }
 
         function playIfNotPlaying(key) {
-            // If the audio hasn't yet been decoded, do not play (bug with safari).
-            if (audioDecoded && audioKeyPlaying != key) {
+            if (audioKeyPlaying != key) {
                 // Stop all sounds.
                 backgroundMusic.stop();
                 audioPlaying = backgroundMusic.play(key, 0, 1, true);
@@ -458,19 +457,19 @@
 
         function preload() {
             game.load.image("title", "img/title.png");
-            game.load.spritesheet("bg", "img/bg.png?v2", 1250, 150);
-            game.load.spritesheet("goat", "img/goat.png?v2", 25, 20);
-            game.load.spritesheet("wolf", "img/wolf.png?v3", 31, 20);
+            game.load.spritesheet("bg", "img/bg.png", 1250, 150);
+            game.load.spritesheet("goat", "img/goat.png", 25, 20);
+            game.load.spritesheet("wolf", "img/wolf.png", 31, 20);
             game.load.spritesheet("cabbage", "img/cabbage.png", 12, 8);
             game.load.image("boat", "img/boat.png?v3");
             game.load.image("boat-back", "img/boat-back.png");
-            game.load.spritesheet("farmer", "img/farmer.png?v7", 30, 44);
+            game.load.spritesheet("farmer", "img/farmer.png", 30, 44);
             game.load.image("farmer-sleeping", "img/farmer-sleeping.png");
             game.load.bitmapFont("font", "img/font.png", "img/font.fnt");
-            game.load.image("barn-front", "img/barn-front.png?v2");
+            game.load.image("barn-front", "img/barn-front.png");
             game.load.image("gun", "img/gun.png");
             game.load.spritesheet("farmer-death", "img/farmer-death.png?v3", 70, 53);
-            game.load.audio("sounds", "snd/all.mp3?v8");
+            game.load.audio("sounds", ["snd/all.m4a", "snd/all.mp3"]);
             // Gunshot curtosy of http://www.freesound.org/people/lensflare8642/sounds/145209/
             game.load.image("water", "img/water.png?v2");
             game.load.image("barn-fg", "img/barn-fg.png");
@@ -584,7 +583,6 @@
             backgroundMusic = game.add.audio("sounds");
             backgroundMusic.addMarker("bg", 0, 66.56, 1, true);
             backgroundMusic.addMarker("reverse", 67, 41, 1, true);
-            backgroundMusic.onDecoded.add(function() { audioDecoded = true; });
 
             gunshot = game.add.audio("sounds");
             gunshot.addMarker("gunshot", 116.06, 1.2, false);
